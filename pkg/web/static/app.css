@@ -8,22 +8,23 @@
 @font-face { font-family: 'Courier Prime'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/courier-prime.woff2) format('woff2'); }
 
 :root {
+  --color-bg: #26231F; --color-sunken: #1E1B18; --color-surface: #2E2A25; --color-raised: #38332D;
+  --color-fg: #EAE2D0; --color-muted: #B8AE9B; --color-subtle: #857C6C; --color-border: rgba(234,226,208,.14); --color-rule: rgba(234,226,208,.11);
+  --color-pen: #E0855F; --color-pen-weak: rgba(224,133,95,.14);
+  --color-success: #A3BE8C; --color-warning: #EBCB8B; --color-error: #D8858B;
+  --font-display: 'Fraunces', Georgia, serif; --font-body: 'Newsreader', Georgia, serif;
+  --font-hand: 'Caveat', cursive; --font-mono: 'Courier Prime', Courier, monospace;
+  --line: 28px; --r-sm: 4px; --r-md: 6px; --shadow-card: 0 2px 8px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+/* Dark is the default. Set <html data-theme="light"> for the paper version. */
+[data-theme="light"] {
   --color-bg: #F4EEE1; --color-sunken: #EBE3D1; --color-surface: #FBF7EE; --color-raised: #FFFFFF;
   --color-fg: #2E3440; --color-muted: #5A574F; --color-subtle: #8A8478; --color-border: #DACFBB; --color-rule: #DACFBB;
   --color-pen: #C65D3B; --color-pen-weak: rgba(198,93,59,.12);
   --color-success: #6E8F55; --color-warning: #B38B2E; --color-error: #B04A54;
-  --font-display: 'Fraunces', Georgia, serif; --font-body: 'Newsreader', Georgia, serif;
-  --font-hand: 'Caveat', cursive; --font-mono: 'Courier Prime', Courier, monospace;
-  --line: 28px; --r-sm: 4px; --r-md: 6px; --shadow-card: 0 2px 6px rgba(46,52,64,.08);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #26231F; --color-sunken: #1E1B18; --color-surface: #2E2A25; --color-raised: #38332D;
-    --color-fg: #EAE2D0; --color-muted: #B8AE9B; --color-subtle: #857C6C; --color-border: rgba(234,226,208,.14); --color-rule: rgba(234,226,208,.11);
-    --color-pen: #E0855F; --color-pen-weak: rgba(224,133,95,.14);
-    --color-success: #A3BE8C; --color-warning: #EBCB8B; --color-error: #D8858B;
-    --shadow-card: 0 2px 8px rgba(0,0,0,.35);
-  }
+  --shadow-card: 0 2px 6px rgba(46,52,64,.08);
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
