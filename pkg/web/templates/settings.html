@@ -1,0 +1,59 @@
+{{define "content"}}
+{{$d := .Data}}{{$s := $d.Settings}}
+<section class="card">
+<h1>Settings</h1>
+<form method="post" action="/settings">
+  <h3>Sources</h3>
+  <div class="grid">
+    <label>seats.aero Pro API key <input name="seatsaero_key" value="{{$s.SeatsAeroKey}}" placeholder="pro_…" autocomplete="off"><span class="muted small">Awards. Optional; skipped when empty.</span></label>
+    <label>Cash source <select name="cash_source"><option value="google" {{if eq $s.CashSource "google"}}selected{{end}}>Google Flights (scrape, free)</option><option value="serpapi" {{if eq $s.CashSource "serpapi"}}selected{{end}}>SerpApi (paid, stable)</option></select></label>
+    <label>SerpApi key <input name="serpapi_key" value="{{$s.SerpAPIKey}}" autocomplete="off"><span class="muted small">Only used when cash source is SerpApi.</span></label>
+  </div>
+
+  <h3>Points valuation <span class="muted small">cents per point</span></h3>
+  <div class="grid">
+    {{range $d.Programs}}<label>{{.Name}} <input name="cpp_{{.ID}}" type="number" step="0.01" min="0.1" max="10" value="{{index $s.CPP .ID}}"></label>{{end}}
+    <label>Southwest $ per point <input name="sw_rate" type="number" step="0.001" min="0.001" max="0.1" value="{{$s.SWRate}}"><span class="muted small">Wanna Get Away ≈ 0.014</span></label>
+  </div>
+
+  <h3>Amex Travel</h3>
+  <div class="grid">
+    <label>Rebate % <input name="amex_rebate_pct" type="number" step="1" min="0" max="99" value="{{$s.AmexRebatePct}}"><span class="muted small">Platinum: 35 → {{printf "%.2f" $s.AmexCPP}}¢/pt</span></label>
+    <label>Rebate airline (economy) <input name="amex_rebate_airline" value="{{$s.AmexRebateAirline}}" placeholder="DL" maxlength="2"></label>
+  </div>
+
+  <h3>Alerts</h3>
+  <div class="grid">
+    <label>Matrix room id <input name="notify_room" value="{{$s.NotifyRoom}}" placeholder="!abc:matrix.org"></label>
+    <label>Base URL for links <input name="base_url" value="{{$s.BaseURL}}" placeholder="https://flights.tailnet.ts.net"></label>
+  </div>
+  <button class="primary">Save settings</button>
+</form>
+</section>
+
+<section>
+<h2>Scan health</h2>
+<p class="muted">Sources: <b>{{$d.Sources}}</b> · every {{dur $d.Every}}{{if ge $d.Remaining 0}} · seats.aero calls left today: {{$d.Remaining}}{{end}}</p>
+<form method="post" action="/scan" hx-post="/scan" hx-target="#scans" hx-swap="outerHTML" hx-indicator="#spin">
+  <button>Scan now</button> <span id="spin" class="htmx-indicator muted">scanning…</span>
+</form>
+{{template "scans" .}}
+</section>
+{{end}}
+
+{{define "scans"}}
+<div id="scans">
+{{if .Error}}<div class="msg error">{{.Error}}</div>{{end}}
+{{if not .Data.Scans}}<p class="muted">No scans yet.</p>{{else}}
+<table>
+<thead><tr><th>Started</th><th>Trip</th><th>Source</th><th class="num">Calls</th><th>Result</th></tr></thead>
+<tbody>
+{{range .Data.Scans}}
+<tr><td>{{date .StartedAt}}</td><td><a href="/trips/{{.TripID}}"><code>{{.TripID}}</code></a></td><td>{{.Source}}</td><td class="num">{{.CallsUsed}}</td>
+<td>{{if .Error}}<span class="warn">{{.Error}}</span>{{else}}<span class="good">ok</span>{{end}}</td></tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+</div>
+{{end}}

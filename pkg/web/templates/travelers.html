@@ -1,0 +1,41 @@
+{{define "content"}}
+{{$d := .Data}}
+<section>
+<h1>Travelers</h1>
+{{if not $d.Travelers}}<p class="muted">Nobody yet.</p>{{end}}
+{{range $d.Travelers}}
+<div class="card">
+  <form method="post" action="/travelers/{{.ID}}" class="row">
+    <label>Name <input name="name" value="{{.Name}}" required></label>
+    <label>Home airports <input name="homes" value="{{.HomesString}}" placeholder="SFO, OAK" required></label>
+    <button>Save</button>
+  </form>
+  <form method="post" action="/travelers/{{.ID}}/balances">
+    <h3>Points</h3>
+    <div class="grid balances">
+    {{$b := .Balances}}
+    {{range $d.Programs}}
+      {{$cur := index $b .ID}}
+      <label>{{.Name}}
+        <input name="balance_{{.ID}}" inputmode="numeric" value="{{if $cur.UpdatedAt.IsZero}}{{else}}{{$cur.Miles}}{{end}}" >
+        <span class="muted small">{{if $cur.UpdatedAt.IsZero}}not set{{else}}updated {{ago $cur.UpdatedAt}}{{end}}</span>
+      </label>
+    {{end}}
+    </div>
+    <div class="row"><button>Save balances</button>
+    <span class="muted">MR transfers 1:1 to Delta, Virgin Atlantic, Aeroplan, Flying Blue — not United or Southwest.</span></div>
+  </form>
+  <form method="post" action="/travelers/{{.ID}}/delete" onsubmit="return confirm('Remove {{.Name}}? Their offers on every trip go too.')"><button class="danger">Remove</button></form>
+</div>
+{{end}}
+</section>
+
+<section class="card">
+<h2>Add traveler</h2>
+<form method="post" action="/travelers" class="row">
+  <label>Name <input name="name" required></label>
+  <label>Home airports <input name="homes" placeholder="SFO, OAK" required></label>
+  <button class="primary">Add</button>
+</form>
+</section>
+{{end}}

@@ -1,0 +1,14 @@
+{{define "content"}}
+{{$d := .Data}}
+<section>
+<h1>{{$d.Origin}} → {{$d.Dest}}</h1>
+{{if not $d.Points}}<p class="muted">No price history for this route yet. It fills in as scans run.</p>{{else}}
+<p>Lowest {{usd $d.Min}} · median {{usd $d.Median}} · {{len $d.Points}} days</p>
+{{sparkline $d.Points}}
+<table>
+<thead><tr><th>Day</th><th class="num">Lowest cash</th></tr></thead>
+<tbody>{{range $d.Points}}<tr><td>{{.Date}}</td><td class="num">{{usd .LowestUSD}}</td></tr>{{end}}</tbody>
+</table>
+{{end}}
+</section>
+{{end}}

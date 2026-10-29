@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · flights</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">✈ flights</a>
+  <nav>
+    <a href="/" {{if eq .Active "trips"}}class="on"{{end}}>Trips</a>
+    <a href="/explore" {{if eq .Active "explore"}}class="on"{{end}}>Explore</a>
+    <a href="/travelers" {{if eq .Active "travelers"}}class="on"{{end}}>Travelers</a>
+    <a href="/settings" {{if eq .Active "settings"}}class="on"{{end}}>Settings</a>
+  </nav>
+</header>
+<main>
+{{if .Error}}<div class="msg error">{{.Error}}</div>{{end}}
+{{if .Flash}}<div class="msg ok">{{.Flash}}</div>{{end}}
+{{template "content" .}}
+</main>
+</body>
+</html>

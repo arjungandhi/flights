@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Update vendorHash in flake.nix when go.mod/go.sum change
+if git diff --cached --name-only | grep -qE '^go\.(mod|sum)$'; then
+    echo "go.mod/go.sum changed — updating vendorHash in flake.nix..."
+
+    # Set a fake hash to trigger a mismatch and discover the real one
+    sed -i 's|vendorHash = ".*";|vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";|' flake.nix
+
+    nix_output=$(nix build .#default 2>&1 || true)
+    hash=$(echo "$nix_output" | grep "got:" | awk '{print $2}')
+
+    if [ -z "$hash" ]; then
+        echo "ERROR: Could not determine vendorHash, restoring flake.nix"
+        git checkout flake.nix
+        exit 1
+    fi
+
+    sed -i "s|vendorHash = \".*\";|vendorHash = \"$hash\";|" flake.nix
+    git add flake.nix
+    echo "Updated vendorHash to $hash"
+fi

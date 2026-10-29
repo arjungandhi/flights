@@ -1,0 +1,80 @@
+{{define "content"}}
+{{$d := .Data}}{{$t := $d.Trip}}{{$s := $d.Settings}}
+<section>
+<h1><code>{{$t.ID}}</code> <span class="tag">{{$t.Mode}}</span> {{if ne $t.Status "active"}}<span class="tag">{{$t.Status}}</span>{{end}}</h1>
+<p>{{$t.Where}} · {{$t.When}} · {{$t.Cabin}}{{if $t.TargetUSD}} · target {{usd $t.TargetUSD}}/person{{end}}{{if ge $t.MaxStops 0}} · ≤{{$t.MaxStops}} stops{{end}}{{if $t.Airlines}} · {{join $t.Airlines ", "}}{{end}}{{if $t.NoBasic}} · no basic economy{{end}}</p>
+<p class="muted">Last scan {{ago $d.LastScan.StartedAt}}{{if $d.LastScan.Error}} — <span class="warn">{{$d.LastScan.Error}}</span>{{end}}
+  {{if $d.Spark}} · lowest cash per scan {{sparkline $d.Spark}}{{end}}</p>
+
+<div class="row">
+{{range $t.Travelers}}
+  <form method="post" action="/trips/{{$t.ID}}/booked" class="inline">
+    <input type="hidden" name="traveler" value="{{.ID}}">
+    <input type="hidden" name="booked" value="{{if .Booked}}0{{else}}1{{end}}">
+    <button class="{{if .Booked}}ok{{end}}">{{.Name}} {{if .Booked}}✓ booked{{else}}· mark booked{{end}}</button>
+  </form>
+{{end}}
+</div>
+</section>
+
+<section>
+<h2>Candidates</h2>
+{{if not $d.Candidates}}
+<p class="muted">Nothing priced yet{{if $t.Unbooked}}. Candidates appear once a scan returns offers for every unbooked traveler on the same dates.{{else}}: everyone is booked.{{end}}</p>
+{{else}}
+<table>
+<thead><tr><th>#</th><th>Dest</th><th>Dates</th><th class="num">Total</th><th class="num">/ person</th>
+{{range $t.Unbooked}}<th>{{.Name}}</th>{{end}}</tr></thead>
+<tbody>
+{{range $i, $c := $d.Candidates}}
+<tr>
+  <td>{{$i}}</td>
+  <td>{{$c.Dest}}</td>
+  <td>{{shortDate $c.OutDate}}{{if $c.RetDate}} → {{shortDate $c.RetDate}}{{end}}</td>
+  <td class="num"><b>{{usd $c.Total}}</b></td>
+  <td class="num {{if and $t.TargetUSD (le $c.PerPerson $t.TargetUSD)}}good{{end}}">{{usd $c.PerPerson}}</td>
+  {{range $c.Picks}}
+  <td class="pick">
+    {{if .Cash}}
+      <div class="{{if not .UsesAward}}chosen{{end}}">
+        <a href="{{bookLink .Cash}}" target="_blank">{{usd .Cash.PriceUSD}}</a> cash
+        <span class="muted">{{.Cash.Origin}} · {{.Cash.Airline}}{{if .Cash.Stops}} · {{.Cash.Stops}} stop{{else}} · nonstop{{end}}{{if .Cash.BasicEconomy}} · basic{{end}}</span>
+        <div class="muted">or <a href="{{$d.AmexURL}}" target="_blank">{{pts (amexPts .Cash.PriceUSD $s)}} MR</a> via Amex Travel</div>
+      </div>
+    {{end}}
+    {{if .Award}}
+      <div class="{{if .UsesAward}}chosen{{end}}">
+        <a href="{{bookLink .Award}}" target="_blank">{{pts .Award.Miles}} {{program .Award.Program}}</a> + {{usd .Award.TaxesUSD}}
+        <span class="muted">= {{usd (effective .Award $s)}} · {{.Award.Origin}} · {{.Award.Airline}} · seen {{ago .Award.SeenAt}}</span>
+      </div>
+    {{end}}
+  </td>
+  {{end}}
+</tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
+</section>
+
+<section>
+<h2>Alerts</h2>
+{{if not $d.Alerts}}<p class="muted">No alerts sent for this trip.</p>{{else}}
+<table>
+<thead><tr><th>Sent</th><th>Dest</th><th>Dates</th><th>Program</th><th class="num">Effective / person</th></tr></thead>
+<tbody>{{range $d.Alerts}}<tr><td>{{date .SentAt}}</td><td>{{.Dest}}</td><td>{{shortDate .OutDate}}{{if .RetDate}} → {{shortDate .RetDate}}{{end}}</td><td>{{if .Program}}{{program .Program}}{{else}}cash{{end}}</td><td class="num">{{usd .EffectiveUSD}}</td></tr>{{end}}</tbody>
+</table>
+{{end}}
+</section>
+
+<section class="row">
+  {{if eq $t.Status "paused"}}
+  <form method="post" action="/trips/{{$t.ID}}/status"><input type="hidden" name="status" value="active"><button>Resume scanning</button></form>
+  {{else if eq $t.Status "active"}}
+  <form method="post" action="/trips/{{$t.ID}}/status"><input type="hidden" name="status" value="paused"><button>Pause scanning</button></form>
+  {{end}}
+  <form method="post" action="/scan" hx-post="/scan" hx-target="#scan-result" hx-swap="innerHTML"><input type="hidden" name="trip" value="{{$t.ID}}"><button>Scan now</button></form>
+  <form method="post" action="/trips/{{$t.ID}}/delete" onsubmit="return confirm('Delete {{$t.ID}}?')"><button class="danger">Delete trip</button></form>
+</section>
+<div id="scan-result"></div>
+{{end}}
