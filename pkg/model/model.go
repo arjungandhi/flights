@@ -81,7 +81,7 @@ type Traveler struct {
 	ID       int64
 	Name     string
 	Homes    []string // airport codes; any is an acceptable origin
-	Airlines []string // preferred carriers; a fare on one of these wins when within the tolerance of the cheapest
+	Airlines []string // preferred carriers in rank order; the best-ranked one within tolerance of the cheapest fare wins
 	Balances map[string]Balance
 }
 

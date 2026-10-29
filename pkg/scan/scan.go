@@ -316,7 +316,7 @@ func (p *priceRun) priceSet(ctx context.Context, travelers []model.TripTraveler,
 	return nil
 }
 
-// add keeps the cheapest itinerary and, when different, the cheapest nonstop and the cheapest on a preferred airline.
+// add keeps the cheapest itinerary and, when different, the cheapest nonstop and the cheapest on each preferred airline.
 func (p *priceRun) add(tr model.TripTraveler, q source.Query, res source.Result) {
 	if len(res.Itineraries) == 0 {
 		return
@@ -339,18 +339,18 @@ func (p *priceRun) add(tr model.TripTraveler, q source.Query, res source.Result)
 	}
 	cheapest := res.Itineraries[0]
 	p.offers = append(p.offers, mk(cheapest))
-	nonstop, preferred := cheapest.Stops == 0, tr.Prefers(cheapest.Airline)
+	nonstop := cheapest.Stops == 0
+	seen := map[string]bool{cheapest.Airline: true} // cheapest per preferred airline, so rank order can be applied later
 	for _, it := range res.Itineraries[1:] {
-		if nonstop && preferred {
-			break
-		}
+		keep := false
 		if !nonstop && it.Stops == 0 {
-			p.offers = append(p.offers, mk(it))
-			nonstop = true
+			keep, nonstop = true, true
 		}
-		if !preferred && tr.Prefers(it.Airline) {
+		if tr.Prefers(it.Airline) && !seen[it.Airline] {
+			keep, seen[it.Airline] = true, true
+		}
+		if keep {
 			p.offers = append(p.offers, mk(it))
-			preferred = true
 		}
 	}
 }
