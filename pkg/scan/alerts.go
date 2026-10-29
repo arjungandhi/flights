@@ -27,16 +27,15 @@ type Notifier interface {
 const (
 	realertDrop = 0.90 // re-alert the same dates only when ≥10% cheaper than last time
 	newLowDrop  = 0.90 // "new low" fires when ≥10% below the lowest price ever alerted
-	batchMax    = 5    // flexible/explore: one message per scan with at most this many candidates
+	batchMax    = 5    // flexible: one message per scan with at most this many candidates
 )
 
 // alert applies the rules from design_doc.md to ranked candidates, records what fires, and sends.
 //
 //  1. under target: per-person effective ≤ target (dedupe per dates, re-alert on ≥10% drop).
-//     Fixed trips send one message per candidate; flexible/explore send one batched message.
-//  2. new low (fixed/flexible): best candidate ≥10% below anything alerted before, or first ever
+//     Fixed trips send one message per candidate; flexible sends one batched message.
+//  2. new low: best candidate ≥10% below anything alerted before, or first ever
 //  3. award space opened: not applicable until an award source exists
-//  4. explore without target: every traveler's fare sits at the provider's "low" level
 func (r *Runner) alert(t model.Trip, cands []pricing.Candidate, s db.Settings) error {
 	if len(cands) == 0 {
 		return nil
@@ -49,9 +48,8 @@ func (r *Runner) alert(t model.Trip, cands []pricing.Candidate, s db.Settings) e
 	for i, c := range cands {
 		pp := c.PerPerson()
 		under := t.TargetUSD > 0 && pp <= t.TargetUSD
-		newLow := i == 0 && t.Mode != model.ModeExplore && (!hasAlerted || pp <= minAlerted*newLowDrop)
-		low := t.Mode == model.ModeExplore && t.TargetUSD == 0 && allLow(c)
-		if !under && !newLow && !low {
+		newLow := i == 0 && (!hasAlerted || pp <= minAlerted*newLowDrop)
+		if !under && !newLow {
 			continue
 		}
 		prev, ok, err := r.DB.LastAlert(t.ID, c.Dest, c.OutDate, c.RetDate)
@@ -90,15 +88,6 @@ func (r *Runner) alert(t model.Trip, cands []pricing.Candidate, s db.Settings) e
 	return r.Notify.Send(msgs)
 }
 
-func allLow(c pricing.Candidate) bool {
-	for _, p := range c.Picks {
-		if p.UsesAward || p.Cash == nil || p.Cash.PriceLevel != 1 {
-			return false
-		}
-	}
-	return true
-}
-
 func programs(c pricing.Candidate) string {
 	var ps []string
 	for _, p := range c.Picks {
@@ -126,11 +115,7 @@ func candidateText(t model.Trip, c pricing.Candidate, s db.Settings) string {
 
 func batchText(t model.Trip, cs []pricing.Candidate, s db.Settings) string {
 	var b strings.Builder
-	if t.Mode == model.ModeExplore {
-		fmt.Fprintf(&b, "✈ %s · %d cheap destination(s) for everyone", t.ID, len(cs))
-	} else {
-		fmt.Fprintf(&b, "✈ %s · %s · %d date option(s) under $%.0f/pp", t.ID, where(t.Dest), len(cs), t.TargetUSD)
-	}
+	fmt.Fprintf(&b, "✈ %s · %s · %d date option(s) under $%.0f/pp", t.ID, where(t.Dest), len(cs), t.TargetUSD)
 	for _, c := range cs {
 		fmt.Fprintf(&b, "\n%s %s · $%.0f/pp · $%.0f total", where(c.Dest), dates(c), c.PerPerson(), c.Total)
 		for _, p := range c.Picks {
@@ -138,11 +123,7 @@ func batchText(t model.Trip, cs []pricing.Candidate, s db.Settings) string {
 		}
 	}
 	if s.BaseURL != "" {
-		if t.Mode == model.ModeExplore {
-			b.WriteString("\n" + s.BaseURL + "/explore")
-		} else {
-			b.WriteString("\n" + s.BaseURL + "/trips/" + t.ID)
-		}
+		b.WriteString("\n" + s.BaseURL + "/trips/" + t.ID)
 	}
 	return b.String()
 }

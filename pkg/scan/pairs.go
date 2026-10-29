@@ -19,7 +19,7 @@ func (p Pair) nights() int {
 }
 
 // Pairs enumerates every date combination a trip allows, earliest first, skipping dates
-// before tomorrow. Fixed trips expand their ± slack; flexible/explore walk the window.
+// before tomorrow. Fixed trips expand their ± slack; flexible trips walk the window.
 func Pairs(t model.Trip, now time.Time) []Pair {
 	tomorrow := now.AddDate(0, 0, 1).Format(model.DateLayout)
 	var out []Pair

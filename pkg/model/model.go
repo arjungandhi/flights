@@ -15,7 +15,6 @@ type Mode string
 const (
 	ModeFixed    Mode = "fixed"
 	ModeFlexible Mode = "flexible"
-	ModeExplore  Mode = "explore"
 )
 
 type Status string
@@ -35,9 +34,6 @@ const (
 )
 
 var Cabins = []Cabin{CabinEconomy, CabinPremium, CabinBusiness}
-
-// Region filters explore mode. "anywhere" means no filter.
-var Regions = []string{"anywhere", "north-america", "latam", "europe", "asia", "oceania", "africa", "middle-east"}
 
 // Program is a loyalty program an award can be priced in.
 type Program struct {
@@ -106,13 +102,12 @@ type TripTraveler struct {
 type Trip struct {
 	ID          string // slug used in URLs and alert text
 	Mode        Mode
-	Dest        string // airport or metro code; empty for explore
-	Region      string // explore only
+	Dest        string // airport or metro code
 	Depart      string // fixed: YYYY-MM-DD
 	Return      string // fixed: YYYY-MM-DD; empty when one-way
 	Slack       int    // fixed: ±days
 	ArriveBy    string // fixed: HH:MM; keep only itineraries landing on Depart by this time (searches the day before too)
-	WindowStart string // flexible/explore
+	WindowStart string // flexible
 	WindowEnd   string
 	NightsMin   int
 	NightsMax   int
@@ -127,14 +122,8 @@ type Trip struct {
 	Travelers   []TripTraveler
 }
 
-// Where is the human-readable destination: code or region.
+// Where is the human-readable destination.
 func (t Trip) Where() string {
-	if t.Mode == ModeExplore {
-		if t.Region == "" || t.Region == "anywhere" {
-			return "anywhere"
-		}
-		return t.Region
-	}
 	return t.Dest
 }
 

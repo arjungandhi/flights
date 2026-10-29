@@ -42,8 +42,6 @@
   <label for="tab-fixed">fixed dates</label>
   <input type="radio" name="tab" id="tab-flexible" {{if eq $f.mode "flexible"}}checked{{end}}>
   <label for="tab-flexible">flexible</label>
-  <input type="radio" name="tab" id="tab-explore" {{if eq $f.mode "explore"}}checked{{end}}>
-  <label for="tab-explore">explore</label>
 
   <form method="post" action="/trips" class="panel" id="panel-fixed">
     <input type="hidden" name="mode" value="fixed">
@@ -71,20 +69,6 @@
     <label class="check"><input type="checkbox" name="weekends" {{if eq $f.weekends "on"}}checked{{end}}> weekends only (Fri/Sat out, Sun/Mon back)</label>
     {{template "common" $d}}
     <button class="primary">add flexible trip</button>
-  </form>
-
-  <form method="post" action="/trips" class="panel" id="panel-explore">
-    <input type="hidden" name="mode" value="explore">
-    <p class="label">Want to go somewhere on these dates; find what's cheap for everyone.</p>
-    <div class="grid">
-      <label>region <select name="region">{{range $d.Regions}}<option value="{{.}}" {{if eq . $f.region}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-      <label>window start <input type="date" name="window_start" required value="{{$f.window_start}}"></label>
-      <label>window end <input type="date" name="window_end" required value="{{$f.window_end}}"></label>
-      <label>nights <span class="pair"><input type="number" name="nights_min" min="1" value="{{or $f.nights_min "4"}}"> – <input type="number" name="nights_max" min="1" value="{{or $f.nights_max "6"}}"></span></label>
-    </div>
-    <label class="check"><input type="checkbox" name="weekends" {{if eq $f.weekends "on"}}checked{{end}}> weekends only</label>
-    {{template "common" $d}}
-    <button class="primary">add explore trip</button>
   </form>
 </div>
 </section>

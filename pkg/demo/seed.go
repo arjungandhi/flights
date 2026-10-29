@@ -62,15 +62,6 @@ func Seed(d *db.DB) error {
 		return err
 	}
 
-	explore := model.Trip{Mode: model.ModeExplore, Region: "latam", WindowStart: day(ws), WindowEnd: day(ws.AddDate(0, 2, 0)), NightsMin: 4, NightsMax: 6, Weekends: true,
-		Cabin: model.CabinEconomy, MaxStops: 1, Status: model.StatusActive, CreatedAt: now.Add(-5 * 24 * time.Hour)}
-	if explore.ID, err = d.Slug(explore); err != nil {
-		return err
-	}
-	if err := d.AddTrip(explore, []int64{arjun, sneha}); err != nil {
-		return err
-	}
-
 	// Three historical scans for the fixed trip so the sparkline has shape; the last one carries today's offers.
 	for i, base := range []float64{689, 712, 598} {
 		at := now.Add(-time.Duration(2-i) * 24 * time.Hour)
@@ -127,45 +118,7 @@ func Seed(d *db.DB) error {
 	if err := d.AddOffers(offers); err != nil {
 		return err
 	}
-
-	// Explore trip: destinations cheap from both SFO and AUS.
-	scanID, err = d.AddScan(model.Scan{TripID: explore.ID, Source: "demo", StartedAt: at, FinishedAt: at.Add(3 * time.Minute), CallsUsed: 22})
-	if err != nil {
-		return err
-	}
-	offers = offers[:0]
-	for _, dst := range []struct {
-		code      string
-		sfo, aus  float64
-		swPoints  int64
-		swAirline string
-	}{
-		{"MEX", 310, 280, 24000, "WN"}, {"SJO", 420, 390, 0, ""}, {"CUN", 380, 240, 19000, "WN"}, {"LIM", 560, 610, 0, ""},
-	} {
-		for k, pair := range [][2]int{{4, 9}, {18, 23}} {
-			out, back := day(ws.AddDate(0, 0, pair[0])), day(ws.AddDate(0, 0, pair[1]))
-			offers = append(offers,
-				model.Offer{TravelerID: arjun, Origin: "DEN", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: dst.sfo + float64(k*35), Airline: "AM", Stops: 0},
-				model.Offer{TravelerID: sneha, Origin: "LGA", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: dst.aus + float64(k*20), Airline: "AA", Stops: 1},
-			)
-			if dst.swPoints > 0 {
-				offers = append(offers, model.Offer{TravelerID: sneha, Origin: "LGA", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindAward, Program: "southwest", Miles: dst.swPoints, TaxesUSD: 11.2, Airline: dst.swAirline, Stops: 0})
-			}
-		}
-	}
-	for j := range offers {
-		offers[j].ScanID, offers[j].TripID, offers[j].SeenAt = scanID, explore.ID, at
-	}
-	if err := d.AddOffers(offers); err != nil {
-		return err
-	}
-	for i := range 30 {
-		d0 := now.Add(-time.Duration(i) * 24 * time.Hour)
-		if err := d.RecordPrice("DEN", "MEX", d0, 330+float64((i*37)%90)); err != nil {
-			return err
-		}
-	}
-	fmt.Println("demo: seeded travelers Arjun/Sneha and trips", fixed.ID, flex.ID, explore.ID)
+	fmt.Println("demo: seeded travelers Arjun/Sneha and trips", fixed.ID, flex.ID)
 	return nil
 }
 

@@ -34,7 +34,7 @@ type Server struct {
 
 func (s *Server) Handler() http.Handler {
 	s.pages = map[string]*template.Template{}
-	for _, name := range []string{"trips", "trip", "explore", "travelers", "settings", "history"} {
+	for _, name := range []string{"trips", "trip", "travelers", "settings", "history"} {
 		s.pages[name] = template.Must(template.New("layout.html").Funcs(funcs).ParseFS(templateFS, "templates/layout.html", "templates/"+name+".html"))
 	}
 
@@ -48,7 +48,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /trips/{id}/status", s.tripStatus)
 	mux.HandleFunc("POST /trips/{id}/delete", s.deleteTrip)
 	mux.HandleFunc("POST /trips/{id}/booked", s.booked)
-	mux.HandleFunc("GET /explore", s.explore)
 	mux.HandleFunc("GET /travelers", s.travelers)
 	mux.HandleFunc("POST /travelers", s.addTraveler)
 	mux.HandleFunc("POST /travelers/{id}", s.updateTraveler)

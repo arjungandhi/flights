@@ -8,13 +8,13 @@ import (
 	"github.com/arjungandhi/flights/pkg/model"
 )
 
-const tripCols = `id, mode, dest, region, depart, ret, slack, arrive_by, window_start, window_end, nights_min, nights_max,
+const tripCols = `id, mode, dest, depart, ret, slack, arrive_by, window_start, window_end, nights_min, nights_max,
 	weekends, one_way, cabin, target_usd, max_stops, airlines, status, created_at`
 
 func scanTrip(sc interface{ Scan(...any) error }) (model.Trip, error) {
 	var t model.Trip
 	var airlines, created string
-	err := sc.Scan(&t.ID, &t.Mode, &t.Dest, &t.Region, &t.Depart, &t.Return, &t.Slack, &t.ArriveBy, &t.WindowStart, &t.WindowEnd,
+	err := sc.Scan(&t.ID, &t.Mode, &t.Dest, &t.Depart, &t.Return, &t.Slack, &t.ArriveBy, &t.WindowStart, &t.WindowEnd,
 		&t.NightsMin, &t.NightsMax, &t.Weekends, &t.OneWay, &t.Cabin, &t.TargetUSD, &t.MaxStops, &airlines,
 		&t.Status, &created)
 	if err != nil {
@@ -97,8 +97,8 @@ func (d *DB) AddTrip(t model.Trip, travelerIDs []int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	_, err = tx.Exec(`INSERT INTO trips(`+tripCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		t.ID, t.Mode, t.Dest, t.Region, t.Depart, t.Return, t.Slack, t.ArriveBy, t.WindowStart, t.WindowEnd, t.NightsMin, t.NightsMax,
+	_, err = tx.Exec(`INSERT INTO trips(`+tripCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		t.ID, t.Mode, t.Dest, t.Depart, t.Return, t.Slack, t.ArriveBy, t.WindowStart, t.WindowEnd, t.NightsMin, t.NightsMax,
 		t.Weekends, t.OneWay, t.Cabin, t.TargetUSD, t.MaxStops, joinList(t.Airlines), t.Status, fmtTime(t.CreatedAt))
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func (d *DB) AddTrip(t model.Trip, travelerIDs []int64) error {
 	return tx.Commit()
 }
 
-// Slug picks a unique id like "nrt-mar10" or "explore-europe-may".
+// Slug picks a unique id like "nrt-mar10" or "lis-may".
 func (d *DB) Slug(t model.Trip) (string, error) {
 	var base string
 	when := t.Depart
@@ -122,10 +122,8 @@ func (d *DB) Slug(t model.Trip) (string, error) {
 	switch t.Mode {
 	case model.ModeFixed:
 		base = fmt.Sprintf("%s-%s", strings.ToLower(t.Dest), strings.ToLower(tm.Format("Jan2")))
-	case model.ModeFlexible:
-		base = fmt.Sprintf("%s-%s", strings.ToLower(t.Dest), strings.ToLower(tm.Format("Jan")))
 	default:
-		base = fmt.Sprintf("explore-%s-%s", t.Where(), strings.ToLower(tm.Format("Jan")))
+		base = fmt.Sprintf("%s-%s", strings.ToLower(t.Dest), strings.ToLower(tm.Format("Jan")))
 	}
 	id := base
 	for n := 2; ; n++ {

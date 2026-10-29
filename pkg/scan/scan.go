@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/arjungandhi/flights/pkg/db"
-	"github.com/arjungandhi/flights/pkg/geo"
 	"github.com/arjungandhi/flights/pkg/model"
 	"github.com/arjungandhi/flights/pkg/pricing"
 	"github.com/arjungandhi/flights/pkg/source"
@@ -24,15 +23,11 @@ var ErrNoSources = errors.New("no cash source configured")
 const (
 	coarseFixed    = 25
 	coarseFlexible = 16
-	coarseExplore  = 1 // per destination, first home airport per traveler only
 	refineTop      = 3
 	refineDays     = 2
-	refineDests    = 8
-	refinePairs    = 5
 	maxPagesTrip   = 160
-	maxPagesExplor = 500
 	maxFailures    = 5
-	// Flexible/explore trips are page-hungry; they rescan once a day unless forced.
+	// Flexible trips are page-hungry; they rescan once a day unless forced.
 	slowRescan = 20 * time.Hour
 )
 
@@ -54,7 +49,7 @@ func (r *Runner) Busy() bool {
 }
 
 // Run scans every active trip, or just tripID when non-empty. force bypasses the daily
-// throttle for flexible/explore trips (the "Scan now" button).
+// throttle for flexible trips (the "Scan now" button).
 func (r *Runner) Run(ctx context.Context, tripID string, force bool) error {
 	r.mu.Lock()
 	if r.running {
@@ -137,7 +132,7 @@ func (r *Runner) scanTrip(ctx context.Context, t model.Trip) error {
 	return r.alert(t, pricing.Candidates(t, offers, settings), settings)
 }
 
-// recordHistory keeps one lowest-cash price per route per day; the explore baseline.
+// recordHistory keeps one lowest-cash price per route per day.
 func (r *Runner) recordHistory(offers []model.Offer, day time.Time) error {
 	type route struct{ o, d string }
 	low := map[route]float64{}
@@ -164,7 +159,6 @@ type priceRun struct {
 	t        model.Trip
 	settings db.Settings
 	calls    int
-	maxCalls int
 	failures int
 	offers   []model.Offer
 	done     map[string]bool
@@ -180,98 +174,39 @@ func (r *Runner) price(ctx context.Context, t model.Trip, settings db.Settings) 
 	if len(travelers) == 0 {
 		return nil, 0, errors.New("everyone is booked")
 	}
-	var dests []string
-	switch t.Mode {
-	case model.ModeExplore:
-		var homes []string
-		for _, tr := range travelers {
-			homes = append(homes, tr.Homes...)
-		}
-		for _, d := range geo.Destinations(t.Region, homes) {
-			dests = append(dests, d.Code)
-		}
-	default:
-		dests = []string{t.Dest}
-	}
-	run := &priceRun{r: r, t: t, settings: settings, done: map[string]bool{}, maxCalls: maxPagesTrip}
-	if t.Mode == model.ModeExplore {
-		run.maxCalls = maxPagesExplor
-	}
+	run := &priceRun{r: r, t: t, settings: settings, done: map[string]bool{}}
 
 	coarse := coarseFixed
-	switch t.Mode {
-	case model.ModeFlexible:
+	if t.Mode == model.ModeFlexible {
 		coarse = coarseFlexible
-	case model.ModeExplore:
-		coarse = coarseExplore
 	}
 	sample := Sample(pairs, coarse)
-	if t.Mode == model.ModeExplore && len(pairs) > 2 {
-		sample = []Pair{pairs[len(pairs)/2]} // the middle of the window; refine widens for the winners
-	}
-	coarseTravelers := travelers
-	if t.Mode == model.ModeExplore {
-		coarseTravelers = firstHomes(travelers)
-	}
-	for _, d := range dests {
-		if err := run.priceSet(ctx, coarseTravelers, d, sample); err != nil {
-			return run.offers, run.calls, err
-		}
+	if err := run.priceSet(ctx, travelers, t.Dest, sample); err != nil {
+		return run.offers, run.calls, err
 	}
 
 	// Refine around what looks cheapest for the whole group.
 	cands := pricing.Candidates(t, run.offers, settings)
-	switch t.Mode {
-	case model.ModeExplore:
-		seen := map[string]bool{}
-		for _, c := range cands {
-			if seen[c.Dest] {
-				continue
-			}
-			seen[c.Dest] = true
-			if len(seen) > refineDests {
-				break
-			}
-			// All homes, more dates; priceSet skips the (traveler, home, pair) already done.
-			more := append(Sample(pairs, refinePairs), sample...)
-			if err := run.priceSet(ctx, travelers, c.Dest, more); err != nil {
-				return run.offers, run.calls, err
-			}
+	skip := map[Pair]bool{}
+	for _, p := range sample {
+		skip[p] = true
+	}
+	for i, c := range cands {
+		if i >= refineTop {
+			break
 		}
-	default:
-		skip := map[Pair]bool{}
-		for _, p := range sample {
+		more := Neighbors(pairs, Pair{c.OutDate, c.RetDate}, refineDays, skip)
+		for _, p := range more {
 			skip[p] = true
 		}
-		for i, c := range cands {
-			if i >= refineTop {
-				break
-			}
-			more := Neighbors(pairs, Pair{c.OutDate, c.RetDate}, refineDays, skip)
-			for _, p := range more {
-				skip[p] = true
-			}
-			if err := run.priceSet(ctx, travelers, t.Dest, more); err != nil {
-				return run.offers, run.calls, err
-			}
+		if err := run.priceSet(ctx, travelers, t.Dest, more); err != nil {
+			return run.offers, run.calls, err
 		}
 	}
 	if run.lastErr != nil && len(run.offers) == 0 {
 		return nil, run.calls, run.lastErr
 	}
 	return run.offers, run.calls, nil
-}
-
-// firstHomes narrows each traveler to their first home airport for the coarse explore pass.
-func firstHomes(ts []model.TripTraveler) []model.TripTraveler {
-	out := make([]model.TripTraveler, len(ts))
-	for i, t := range ts {
-		out[i] = t
-		if len(t.Homes) > 1 {
-			out[i].Homes = t.Homes[:1]
-		}
-	}
-	return out
 }
 
 // priceSet fetches every (traveler, home, pair) for one destination.
@@ -286,8 +221,8 @@ func (p *priceRun) priceSet(ctx context.Context, travelers []model.TripTraveler,
 				if p.done[key] {
 					continue
 				}
-				if p.calls >= p.maxCalls {
-					return fmt.Errorf("page budget (%d) reached; results are partial", p.maxCalls)
+				if p.calls >= maxPagesTrip {
+					return fmt.Errorf("page budget (%d) reached; results are partial", maxPagesTrip)
 				}
 				p.done[key] = true
 				q := source.Query{Origin: home, Dest: dest, Out: pair.Out, Ret: pair.Ret, Cabin: p.t.Cabin, MaxStops: p.t.MaxStops, Airlines: p.t.Airlines}

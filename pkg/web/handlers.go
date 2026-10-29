@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/arjungandhi/flights/pkg/db"
-	"github.com/arjungandhi/flights/pkg/geo"
 	"github.com/arjungandhi/flights/pkg/model"
 	"github.com/arjungandhi/flights/pkg/pricing"
 )
@@ -29,7 +28,6 @@ type tripsPage struct {
 	Trips     []tripRow
 	Travelers []model.Traveler
 	Cabins    []model.Cabin
-	Regions   []string
 	Form      map[string]string // echoed back on validation error
 }
 
@@ -50,7 +48,7 @@ func (s *Server) tripsData() (tripsPage, error) {
 	if err != nil {
 		return tripsPage{}, err
 	}
-	p := tripsPage{Travelers: travelers, Cabins: model.Cabins, Regions: model.Regions, Form: map[string]string{}}
+	p := tripsPage{Travelers: travelers, Cabins: model.Cabins, Form: map[string]string{}}
 	for _, t := range trips {
 		row := tripRow{Trip: t, LastScan: last[t.ID]}
 		offers, err := s.DB.LatestOffers(t.ID)
@@ -106,7 +104,6 @@ func parseTripForm(r *http.Request) (model.Trip, []int64, error) {
 	t := model.Trip{
 		Mode:      model.Mode(f.Get("mode")),
 		Dest:      strings.ToUpper(strings.TrimSpace(f.Get("dest"))),
-		Region:    f.Get("region"),
 		Cabin:     model.Cabin(f.Get("cabin")),
 		Status:    model.StatusActive,
 		CreatedAt: time.Now(),
@@ -174,15 +171,9 @@ func parseTripForm(r *http.Request) (model.Trip, []int64, error) {
 		if t.TargetUSD == 0 {
 			return t, nil, errors.New("target price is required for fixed trips")
 		}
-	case model.ModeFlexible, model.ModeExplore:
-		if t.Mode == model.ModeFlexible && len(t.Dest) != 3 {
+	case model.ModeFlexible:
+		if len(t.Dest) != 3 {
 			return t, nil, errors.New("destination must be a 3-letter airport or metro code")
-		}
-		if t.Mode == model.ModeExplore {
-			t.Dest = ""
-			if t.Region == "" {
-				t.Region = "anywhere"
-			}
 		}
 		t.WindowStart, t.WindowEnd = f.Get("window_start"), f.Get("window_end")
 		if !validDate(t.WindowStart) || !validDate(t.WindowEnd) || t.WindowEnd < t.WindowStart {
@@ -195,7 +186,7 @@ func parseTripForm(r *http.Request) (model.Trip, []int64, error) {
 				return t, nil, errors.New("nights range must be at least 1 and min ≤ max")
 			}
 		}
-		if t.Mode == model.ModeFlexible && t.TargetUSD == 0 {
+		if t.TargetUSD == 0 {
 			return t, nil, errors.New("target price is required for flexible trips")
 		}
 	default:
@@ -299,97 +290,6 @@ func (s *Server) booked(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/trips/"+id, http.StatusSeeOther)
-}
-
-// ---- Explore ----
-
-type exploreDest struct {
-	Dest  string
-	Cands []pricing.Candidate
-}
-
-type exploreRegion struct {
-	Name   string
-	Dests  []exploreDest
-	Hidden int // destinations cut by the per-region limit
-}
-
-type exploreTrip struct {
-	model.Trip
-	Regions  []exploreRegion
-	Total    int
-	LastScan model.Scan
-}
-
-const explorePerRegion = 6
-
-func (s *Server) explore(w http.ResponseWriter, r *http.Request) {
-	showAll := r.URL.Query().Get("all") == "1"
-	trips, err := s.DB.Trips()
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	settings, err := s.DB.Settings()
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	last, err := s.DB.LastScan()
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	var out []exploreTrip
-	for _, t := range trips {
-		if t.Mode != model.ModeExplore {
-			continue
-		}
-		offers, err := s.DB.LatestOffers(t.ID)
-		if err != nil {
-			s.fail(w, err)
-			return
-		}
-		et := exploreTrip{Trip: t, LastScan: last[t.ID]}
-		byDest := map[string]*exploreDest{}
-		for _, c := range pricing.Candidates(t, offers, settings) {
-			d := byDest[c.Dest]
-			if d == nil {
-				d = &exploreDest{Dest: c.Dest}
-				byDest[c.Dest] = d
-			}
-			if len(d.Cands) < 3 {
-				d.Cands = append(d.Cands, c)
-			}
-		}
-		dests := make([]exploreDest, 0, len(byDest))
-		for _, d := range byDest {
-			dests = append(dests, *d)
-		}
-		sort.Slice(dests, func(i, j int) bool { return dests[i].Cands[0].Total < dests[j].Cands[0].Total })
-		et.Total = len(dests)
-		// Group by region, keep each region's order (cheapest first) and cut unless ?all=1.
-		idx := map[string]int{}
-		for _, d := range dests {
-			name := geo.Region(d.Dest)
-			if name == "" {
-				name = "other"
-			}
-			i, ok := idx[name]
-			if !ok {
-				i = len(et.Regions)
-				idx[name] = i
-				et.Regions = append(et.Regions, exploreRegion{Name: name})
-			}
-			if len(et.Regions[i].Dests) < explorePerRegion || showAll {
-				et.Regions[i].Dests = append(et.Regions[i].Dests, d)
-			} else {
-				et.Regions[i].Hidden++
-			}
-		}
-		out = append(out, et)
-	}
-	s.render(w, "explore", page{Title: "Explore", Data: out})
 }
 
 // ---- Travelers ----
@@ -610,7 +510,7 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings?flash=saved", http.StatusSeeOther)
 }
 
-// scanNow starts a forced pass in the background (explore scans run for many minutes) and
+// scanNow starts a forced pass in the background (flexible scans run for minutes) and
 // returns the scan-health partial for htmx. Results land in the scans table when done.
 func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 	tripID := r.FormValue("trip")
@@ -670,5 +570,5 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 		sort.Float64s(vals)
 		p.Min, p.Median = vals[0], vals[len(vals)/2]
 	}
-	s.render(w, "history", page{Title: origin + " → " + dest, Active: "explore", Data: p})
+	s.render(w, "history", page{Title: origin + " → " + dest, Active: "trips", Data: p})
 }

@@ -6,13 +6,12 @@ Non-goals: booking, seat selection, hotel/car, tracking booked itineraries for p
 
 # Trip Modes
 
-Three ways to say what we want. One `trips` table; mode is derived from which fields are set.
+Two ways to say what we want. One `trips` table; mode is derived from which fields are set.
 
 | Mode | Destination | Dates | Example |
 |---|---|---|---|
 | `fixed` | known | exact depart + return, optional ±slack days | wedding in NRT, Mar 10–20 |
 | `flexible` | known | window + trip length range | LIS, any 7–12 nights May–Aug |
-| `explore` | open (optionally region-filtered) | window + trip length range | "somewhere cool", 4–6 nights, any weekend in Oct |
 
 Every trip has 1..N travelers. Each traveler has a home airport set. A **candidate** is `(destination, out_date, ret_date)`; its cost is the sum of each traveler's cheapest offer for that date pair. All travelers must arrive at the destination on `out_date` and leave on `ret_date` (same calendar day; no tighter sync in v1).
 
@@ -63,14 +62,14 @@ type AwardSource interface {
 }
 ```
 
-There is no calendar or explore call because no free provider offers one (below). Everything is built from `Search`.
+There is no calendar call because no free provider offers one (below). Everything is built from `Search`.
 
 ## Cash: `google` (implemented)
 
 Fetches the public Google Flights search page (`/travel/flights?tfs=…&curr=USD`) and reads the result payload it inlines (`AF_initDataCallback` key `ds:1`). Verified 2026-10-28 with plain Go `net/http` and a Chrome UA: no key, no TLS impersonation, no consent wall (cookie pre-set). Facts that shape the design:
 
-- Google signature-gated its JSON RPCs (`GetShoppingResults`, `GetCalendarGraph`, `GetExploreDestinations`) in 2026-08. The HTML page is the only free path. The explore page inlines nothing; the date grid is not inlined either. So **one page = one (origin, dest, out, ret)**, 2–3 MB each.
-- The page carries Google's **price insight** for that date pair: level (low/typical/high), typical range, and a ~60-day history. Stored on each offer (`price_level`, `typical_low`, `typical_high`); this is the baseline the explore rule uses instead of waiting weeks for our own history.
+- Google signature-gated its JSON RPCs (`GetShoppingResults`, `GetCalendarGraph`, `GetExploreDestinations`) in 2026-08. The HTML page is the only free path; the date grid is not inlined. So **one page = one (origin, dest, out, ret)**, 2–3 MB each.
+- The page carries Google's **price insight** for that date pair: level (low/typical/high), typical range, and a ~60-day history. Stored on each offer (`price_level`, `typical_low`, `typical_high`) and shown as a low/typical/high tag.
 - Southwest fares are present. Basic-economy is not flagged, so there is no basic-economy filter.
 - `tfs` is a protobuf: segments (date, origin, destination, max stops, carrier allow-list), cabin, passengers, trip type. Encoder in `pkg/source/google/tfs.go`, decoder in `parse.go`, both pinned by a live fixture test.
 - Pacing: one page every 2.5–3.75 s (jittered), 3 attempts when a 200 arrives without `ds:1` (~1 in 60 is a transient variant). HTTP errors propagate. Run from a residential IP.
@@ -79,18 +78,18 @@ Fetches the public Google Flights search page (`/travel/flights?tfs=…&curr=USD
 
 Pro API ($9.99/mo, 1,000 calls/day). Cached Search gives per-day availability and mileage per cabin for a route across programs. Pro accounts do not get Live Search and not every Pro account gets API access at all, so check Settings → API before building on it. The key field exists in Settings; the source does not.
 
-## Curated destinations
+## City names
 
-`pkg/geo/destinations.go`: ~180 airports tagged by region (`north-america`, `latam`, `europe`, `asia`, `oceania`, `africa`, `middle-east`). Explore mode fans `Search` out over this list, minus every traveler's home airports.
+`pkg/geo/destinations.go`: ~180 airport → city names for display in the UI and alert text.
 
 # Scan Algorithm
 
-`pkg/scan`. One pass per active trip. Fixed trips scan every cycle (4h); flexible and explore trips are page-hungry and rescan once per ~20h unless "Scan now" forces it. Budgets are page counts, since pages are the cost:
+`pkg/scan`. One pass per active trip. Fixed trips scan every cycle (4h); flexible trips are page-hungry and rescan once per ~20h unless "Scan now" forces it. Budgets are page counts, since pages are the cost:
 
-1. **Enumerate** every allowed `(out, ret)` pair (`Pairs`): fixed = the ±slack grid; flexible/explore = every window date × nights range, weekends-only if set, returns inside the window, nothing before tomorrow.
-2. **Coarse sample** evenly across the list (`Sample`): fixed up to 25 pairs, flexible 16. Explore prices one pair per destination (the middle of the window) from each traveler's first home airport only. Same pairs for everyone so candidates line up.
-3. **Refine** around what is cheapest for the whole group (`pricing.Candidates` on what's priced so far): fixed/flexible price the ±2-day neighbours of the top 3 candidates at the same trip length; explore prices 5 more pairs from every home airport for each of the top 8 destinations.
-4. Hard cap 160 pages per trip per scan (500 for explore: "anywhere" is ~180 destinations); 5 consecutive fetch failures abort; a page without results aborts immediately (rate limit or layout change).
+1. **Enumerate** every allowed `(out, ret)` pair (`Pairs`): fixed = the ±slack grid; flexible = every window date × nights range, weekends-only if set, returns inside the window, nothing before tomorrow.
+2. **Coarse sample** evenly across the list (`Sample`): fixed up to 25 pairs, flexible 16. Price every pair for every unbooked traveler from every home airport. Same pairs for everyone so candidates line up.
+3. **Refine** around what is cheapest for the whole group (`pricing.Candidates` on what's priced so far): price the ±2-day neighbours of the top 3 candidates at the same trip length.
+4. Hard cap 160 pages per trip per scan; 5 consecutive fetch failures abort; a page without results aborts immediately (rate limit or layout change).
 
 Measured: fixed DEN+LGA+JFK→LAS = 3 pages, 8 s. Flexible 12-day window, 4–5 nights, 3 home airports = 45 pages, 137 s.
 
@@ -103,9 +102,8 @@ Evaluated after each scan, per trip, on the ranked candidates:
 1. **Under target**: per-person effective ≤ `target`. Deduped per `(trip, dest, out, ret)`; the same dates re-alert only on a further ≥10% drop.
 2. **New low** (fixed/flexible): best candidate is ≥10% below the lowest price ever alerted for the trip, or nothing has been alerted yet (so the first scan always reports where things stand).
 3. **Award space opened**: deferred until an award source exists.
-4. **Explore deal** (explore mode without target): every traveler's fare sits at Google's "low" level for its dates.
 
-Fixed trips send one message per candidate; flexible and explore send one batched message per scan with at most 5 candidates. Messages are JSON lines `{"room_id", "text"}` on the notify command's stdin; `room_id` and the base URL for links come from Settings.
+Fixed trips send one message per candidate; flexible sends one batched message per scan with at most 5 candidates. Messages are JSON lines `{"room_id", "text"}` on the notify command's stdin; `room_id` and the base URL for links come from Settings.
 
 ```
 ✈ mex-apr · Mexico City (MEX) · 5 date option(s) under $400/pp
@@ -121,17 +119,16 @@ Alerts are recorded in `alerts` before sending, so a crashed notify command lose
 
 The only surface. Partners use it, so nothing requires a shell. Go `net/http` + `html/template` + htmx for partial updates; no JS build step. Written in Go, not a JS framework: the UI is tables and forms, and one `go build` ships the whole app. Styled with the monkey "logbook" design system (warm paper, 28px rule, Fraunces headings, Newsreader body, Caveat only for dates/margin notes, one pen colour per page); fonts are embedded. Pages:
 
-- **Trips**: table of trips (mode, travelers, best effective price per person and total, Δ since last scan, last scanned, status). Row actions: pause/resume, delete. Add-trip form with three tabs matching the modes:
-  - Destination: airport or metro code (`NRT`, `TYO`, `LON`) with typeahead; absent on the Explore tab, which has a region select (`anywhere`, `europe`, `asia`, `latam`, ...).
-  - Dates: Fixed tab = depart + return pickers, ±slack days, and an optional "arrive by HH:MM": only itineraries landing on the depart date by that time count, and the day before is searched too so red-eyes qualify. Flexible/Explore tabs = window start/end, nights min–max, "weekends only" (Fri/Sat out, Sun/Mon back).
+- **Trips**: table of trips (mode, travelers, best effective price per person and total, Δ since last scan, last scanned, status). Row actions: pause/resume, delete. Add-trip form with two tabs matching the modes:
+  - Destination: airport or metro code (`NRT`, `TYO`, `LON`) with typeahead.
+  - Dates: Fixed tab = depart + return pickers, ±slack days, and an optional "arrive by HH:MM": only itineraries landing on the depart date by that time count, and the day before is searched too so red-eyes qualify. Flexible tab = window start/end, nights min–max, "weekends only" (Fri/Sat out, Sun/Mon back).
   - Travelers: checkboxes, all selected by default.
-  - Cabin (economy/premium/business), target effective USD per person (required for fixed/flexible, optional for explore), max stops, airline allow-list, one-way.
+  - Cabin (economy/premium/business), target effective USD per person (required), max stops, airline allow-list, one-way.
   - Trip id is a short slug (`nrt-mar10`) used in URLs and alert text.
 - **Trip detail**: ranked candidate table (dest, dates, total, per-traveler breakdown showing cash vs best bookable award and program, departure→arrival times, Google's typical range, "or N MR via Amex Travel" next to cash linking to the same search on Amex Travel — `prebooking.americanexpress.com/…/search-redirect?requestBody=base64(urlencode(JSON))`, reverse-engineered from a live search, lands after login), sparkline of lowest price per scan, alert history, "Book" links per traveler: Google Flights URL, airline/program award search prefilled with dates (Delta, Virgin Atlantic, Aeroplan, United, Flying Blue, Southwest), Amex Travel. Travelers are marked booked individually; the trip keeps scanning for the rest and stops when everyone is booked.
-- **Explore**: deals board for explore-mode trips: destination cards with price per traveler, deal score vs baseline, best date pairs. The Flights-From-Home-style digest, but intersected across everyone's home airport.
 - **Travelers**: add/remove; name, home airports (one or more; any is an acceptable origin), preferred airlines in rank order (the best-ranked airline with a fare within the Settings tolerance, default 10%, of the cheapest wins the traveler's pick; the cheapest stays visible), points balances per program (`delta`, `southwest`, `united`, `amex` = Membership Rewards) with inline edit and last-updated timestamps.
 - **Settings**: seats.aero key (stored, unused until the award source lands), cpp table, Southwest rate, Amex rebate (airline + pct), notify command + Matrix room. Scan health: last 20 scans with calls used, errors. "Scan now" starts a forced pass in the background (one at a time); results appear in the table when it finishes.
-- **Route history** (`/history/SFO/NRT`): lowest price per day over time; the baseline the explore deal score uses.
+- **Route history** (`/history/SFO/NRT`): lowest price per day over time.
 
 
 # Storage
@@ -140,11 +137,11 @@ SQLite, migrations embedded, same pattern as money.
 
 - `travelers(id, name, homes TEXT /* comma list */)`
 - `balances(traveler_id, program, miles, updated_at)` — `program` includes `amex`
-- `trips(id TEXT PK, mode, dest, region, depart, ret, slack, window_start, window_end, nights_min, nights_max, weekends BOOL, one_way BOOL, cabin, target_usd, max_stops, airlines, status /* active|paused|booked */, created_at)`
+- `trips(id TEXT PK, mode, dest, depart, ret, slack, window_start, window_end, nights_min, nights_max, weekends BOOL, one_way BOOL, cabin, target_usd, max_stops, airlines, status /* active|paused|booked */, created_at)`
 - `trip_travelers(trip_id, traveler_id, booked BOOL)`
 - `scans(id, trip_id, source, started_at, finished_at, calls_used, error)`
 - `offers(id, scan_id, trip_id, traveler_id, origin, dest, out_date, ret_date, kind /* cash|award */, program, price_usd, miles, taxes_usd, airline, stops, basic_economy BOOL, price_level, typical_low, typical_high, seen_at, link_params /* google: tfs */)`
-- `price_history(origin, dest, date /* scan day */, lowest_usd)` — one row per route per day, feeds the explore baseline
+- `price_history(origin, dest, date /* scan day */, lowest_usd)` — one row per route per day
 - `alerts(id, trip_id, dest, out_date, ret_date, program, effective_usd, sent_at)`
 - `config(key, value)` — API keys, cpp table, amex rebate, matrix room id
 
@@ -158,8 +155,8 @@ SQLite, migrations embedded, same pattern as money.
 
 # Risks
 
+- Google rate-limits: after ~500 pages in half an hour it starts serving result-less pages (seen 2026-10-28). The scan aborts on the first such page (`ErrBlocked`) and the next cycle retries; keep windows and home-airport lists modest.
 - Google page/protobuf drift breaks the cash source: shows up as `scans.error` on every trip (Settings → Scan health) and in the fixture test. SerpApi (~$75/mo) serves the same data if the page ever gets gated; `CashSource` is one interface so it would be a second implementation, not a rewrite.
-- Explore is a brute-force fan-out (≈ destinations × 3 pairs × home airports pages), so a region-wide explore trip can hit the 160-page cap before refining. Narrow the region or window; a Google Explore replacement would need a browser session.
 - seats.aero API access is not guaranteed to all Pro accounts and may be geo-restricted; check Settings → API before building on it. Without it the tool is cash-only.
 - Award data is cached (hours old). Alerts say so; humans verify on the airline site.
 - Multi-origin sync is same-day only. Good enough for v1; tighter arrival windows need per-itinerary times, which `Search` provides and could be added later.

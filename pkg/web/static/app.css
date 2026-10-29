@@ -118,5 +118,5 @@ td.actions button { height: 24px; line-height: 21px; font-size: 14px; margin-top
 .tabs > label { display: inline-block; font-family: var(--font-display); font-style: italic; font-size: 16px; line-height: 28px; padding: 0 14px; cursor: pointer; color: var(--color-muted); margin-right: 8px; }
 .tabs > input:checked + label { color: var(--color-fg); font-style: normal; font-weight: 600; box-shadow: inset 0 -1.5px 0 var(--color-pen); }
 .tabs .panel { display: none; flex: 0 0 100%; }
-#tab-fixed:checked ~ #panel-fixed, #tab-flexible:checked ~ #panel-flexible, #tab-explore:checked ~ #panel-explore { display: block; }
+#tab-fixed:checked ~ #panel-fixed, #tab-flexible:checked ~ #panel-flexible { display: block; }
 .htmx-indicator { display: none; } .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-block; }

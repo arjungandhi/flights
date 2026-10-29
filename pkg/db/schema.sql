@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS trips (
     id           TEXT PRIMARY KEY,
     mode         TEXT NOT NULL,
     dest         TEXT NOT NULL DEFAULT '',
-    region       TEXT NOT NULL DEFAULT '',
     depart       TEXT NOT NULL DEFAULT '',
     ret          TEXT NOT NULL DEFAULT '',
     slack        INTEGER NOT NULL DEFAULT 0,
