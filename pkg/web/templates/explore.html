@@ -1,25 +1,24 @@
 {{define "content"}}
 <section>
-<h1>Explore</h1>
-<p class="muted">Destinations cheap for everyone at once. One board per explore trip.</p>
-{{if not .Data}}<p class="empty"><span class="logo"></span> <span>No explore trips. Add one from the <a href="/">Trips</a> page (Explore tab).</span></p>{{end}}
+<h1>somewhere <em>cheap for everyone</em></h1>
+{{if not .Data}}<p class="muted">No explore trips. Add one from the <a href="/">trips</a> page (explore tab).</p>{{end}}
 {{range .Data}}
-<h2><a href="/trips/{{.ID}}"><code>{{.ID}}</code></a> · {{.Where}} · {{.When}} <span class="muted">scanned {{ago .LastScan.StartedAt}}</span></h2>
+<div class="rule"><a href="/trips/{{.ID}}">{{.ID}}</a> · {{.Where}} · {{.When}} · scanned <span class="hand">{{ago .LastScan.StartedAt}}</span></div>
 {{if not .Dests}}<p class="muted">Nothing priced yet.</p>{{end}}
 <div class="cards">
 {{range .Dests}}
   {{$best := index .Cands 0}}
   <div class="card dest">
-    <div class="dest-head"><b class="big">{{.Dest}}</b><span class="big">{{usd $best.PerPerson}}<span class="muted">/pp</span></span></div>
-    <div class="muted">{{usd $best.Total}} total</div>
+    <div class="dest-head"><span class="big">{{city .Dest}}</span><span class="price">{{usd $best.PerPerson}}<span class="subtle small">/pp</span></span></div>
+    <div class="label">{{.Dest}} · {{usd $best.Total}} total</div>
     <ul>
-    {{range .Cands}}<li>{{shortDate .OutDate}} → {{shortDate .RetDate}} <span class="muted">{{usd .Total}}</span></li>{{end}}
+    {{range .Cands}}<li>{{shortDate .OutDate}} → {{shortDate .RetDate}} <span class="subtle">{{usd .Total}}</span></li>{{end}}
     </ul>
     <div class="row">
-    {{range $best.Picks}}<span class="chip">{{.Traveler.Name}} {{usd .Effective}}{{if .UsesAward}} ✦{{end}}</span>{{end}}
+    {{range $best.Picks}}<span class="tag{{if and .Cash (eq .Cash.PriceLevel 1)}} ok{{end}}">{{.Traveler.Name}} {{usd .Effective}}{{if .UsesAward}} ✦{{end}}</span>{{end}}
     </div>
-    <div class="row">
-    {{range $best.Picks}}<a class="muted" href="/history/{{index .Traveler.Homes 0}}/{{$best.Dest}}">{{index .Traveler.Homes 0}}→{{$best.Dest}} history</a>{{end}}
+    <div class="subtle small">
+    {{range $i, $p := $best.Picks}}{{if $i}} · {{end}}<a href="/history/{{index $p.Traveler.Homes 0}}/{{$best.Dest}}">{{index $p.Traveler.Homes 0}}→{{$best.Dest}} history</a>{{end}}
     </div>
   </div>
 {{end}}

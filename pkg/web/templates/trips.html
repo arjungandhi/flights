@@ -1,30 +1,30 @@
 {{define "content"}}
 {{$d := .Data}}
 <section>
-<h1>Trips</h1>
+<h1>where <em>next</em></h1>
 {{if not $d.Trips}}
-<p class="empty"><span class="logo"></span> No trips yet. Add one below.</p>
+<p class="muted">Nothing on the books. Add a trip below.</p>
 {{else}}
-<table>
-<thead><tr><th>Trip</th><th>Mode</th><th>Where</th><th>When</th><th>Travelers</th><th class="num">Best / person</th><th class="num">Total</th><th>Scanned</th><th></th></tr></thead>
+<table class="table">
+<thead><tr><th>trip</th><th>mode</th><th>where</th><th>when</th><th>who</th><th class="num">best / person</th><th class="num">total</th><th>scanned</th><th></th></tr></thead>
 <tbody>
 {{range $d.Trips}}
 <tr class="{{if ne .Status "active"}}dim{{end}}">
-  <td><a href="/trips/{{.ID}}"><code>{{.ID}}</code></a>{{if ne .Status "active"}} <span class="tag">{{.Status}}</span>{{end}}</td>
-  <td>{{.Mode}}</td>
-  <td>{{.Where}}</td>
+  <td><a href="/trips/{{.ID}}"><code>{{.ID}}</code></a>{{if ne .Status "active"}} <span class="stamp">{{.Status}}</span>{{end}}</td>
+  <td class="label">{{.Mode}}</td>
+  <td>{{city .Where}}</td>
   <td>{{.When}}</td>
   <td>{{range $i, $t := .Travelers}}{{if $i}}, {{end}}{{$t.Name}}{{if $t.Booked}} ✓{{end}}{{end}}</td>
-  <td class="num">{{if .Best}}{{usd .Best.PerPerson}}{{if .TargetUSD}}<span class="muted"> / {{usd .TargetUSD}}</span>{{end}}{{else}}<span class="muted">—</span>{{end}}</td>
-  <td class="num">{{if .Best}}{{usd .Best.Total}}{{else}}<span class="muted">—</span>{{end}}</td>
-  <td>{{if .LastScan.Error}}<span class="warn" title="{{.LastScan.Error}}">{{ago .LastScan.StartedAt}} ⚠</span>{{else}}{{ago .LastScan.StartedAt}}{{end}}</td>
+  <td class="num">{{if .Best}}{{usd .Best.PerPerson}}{{if .TargetUSD}}<span class="subtle"> / {{usd .TargetUSD}}</span>{{end}}{{else}}<span class="subtle">—</span>{{end}}</td>
+  <td class="num">{{if .Best}}{{usd .Best.Total}}{{else}}<span class="subtle">—</span>{{end}}</td>
+  <td><span class="hand">{{ago .LastScan.StartedAt}}</span>{{if .LastScan.Error}} <span class="warn" title="{{.LastScan.Error}}">⚠</span>{{end}}</td>
   <td class="actions">
     {{if eq .Status "paused"}}
-    <form method="post" action="/trips/{{.ID}}/status"><input type="hidden" name="status" value="active"><button>Resume</button></form>
+    <form method="post" action="/trips/{{.ID}}/status"><input type="hidden" name="status" value="active"><button class="ghost">resume</button></form>
     {{else if eq .Status "active"}}
-    <form method="post" action="/trips/{{.ID}}/status"><input type="hidden" name="status" value="paused"><button>Pause</button></form>
+    <form method="post" action="/trips/{{.ID}}/status"><input type="hidden" name="status" value="paused"><button class="ghost">pause</button></form>
     {{end}}
-    <form method="post" action="/trips/{{.ID}}/delete" onsubmit="return confirm('Delete {{.ID}}?')"><button class="danger">Delete</button></form>
+    <form method="post" action="/trips/{{.ID}}/delete" onsubmit="return confirm('Delete {{.ID}}?')"><button class="danger">delete</button></form>
   </td>
 </tr>
 {{end}}
@@ -33,58 +33,58 @@
 {{end}}
 </section>
 
-<section class="card">
-<h2>Add trip</h2>
+<section>
+<h2>add a <em>trip</em></h2>
 {{if not $d.Travelers}}<p class="warn">Add a <a href="/travelers">traveler</a> first.</p>{{end}}
 {{$f := $d.Form}}
 <div class="tabs">
   <input type="radio" name="tab" id="tab-fixed" {{if or (eq $f.mode "fixed") (not $f.mode)}}checked{{end}}>
-  <label for="tab-fixed">Fixed dates</label>
+  <label for="tab-fixed">fixed dates</label>
   <input type="radio" name="tab" id="tab-flexible" {{if eq $f.mode "flexible"}}checked{{end}}>
-  <label for="tab-flexible">Flexible</label>
+  <label for="tab-flexible">flexible</label>
   <input type="radio" name="tab" id="tab-explore" {{if eq $f.mode "explore"}}checked{{end}}>
-  <label for="tab-explore">Explore</label>
+  <label for="tab-explore">explore</label>
 
   <form method="post" action="/trips" class="panel" id="panel-fixed">
     <input type="hidden" name="mode" value="fixed">
-    <p class="muted">Need to be somewhere on specific dates.</p>
+    <p class="label">Need to be somewhere on specific dates.</p>
     <div class="grid">
-      <label>Destination <input name="dest" placeholder="NRT" maxlength="3" required value="{{$f.dest}}"></label>
-      <label>Depart <input type="date" name="depart" required value="{{$f.depart}}"></label>
-      <label>Return <input type="date" name="return" value="{{$f.return}}"></label>
+      <label>destination <input name="dest" placeholder="NRT" maxlength="3" required value="{{$f.dest}}"></label>
+      <label>depart <input type="date" name="depart" required value="{{$f.depart}}"></label>
+      <label>return <input type="date" name="return" value="{{$f.return}}"></label>
       <label>± days <input type="number" name="slack" min="0" max="7" value="{{or $f.slack "0"}}"></label>
-      <label>Arrive by <input type="time" name="arrive_by" value="{{$f.arrive_by}}"><span class="muted small">Optional. Must land on the depart date by this time; red-eyes the night before count.</span></label>
+      <label>arrive by <input type="time" name="arrive_by" value="{{$f.arrive_by}}"><span class="subtle small">optional · must land on the depart date by this time; red-eyes the night before count</span></label>
     </div>
     {{template "common" $d}}
-    <button class="primary">Add fixed trip</button>
+    <button class="primary">add fixed trip</button>
   </form>
 
   <form method="post" action="/trips" class="panel" id="panel-flexible">
     <input type="hidden" name="mode" value="flexible">
-    <p class="muted">Know where, flexible on when.</p>
+    <p class="label">Know where, flexible on when.</p>
     <div class="grid">
-      <label>Destination <input name="dest" placeholder="LIS" maxlength="3" required value="{{$f.dest}}"></label>
-      <label>Window start <input type="date" name="window_start" required value="{{$f.window_start}}"></label>
-      <label>Window end <input type="date" name="window_end" required value="{{$f.window_end}}"></label>
-      <label>Nights <span class="pair"><input type="number" name="nights_min" min="1" value="{{or $f.nights_min "7"}}"> – <input type="number" name="nights_max" min="1" value="{{or $f.nights_max "12"}}"></span></label>
+      <label>destination <input name="dest" placeholder="LIS" maxlength="3" required value="{{$f.dest}}"></label>
+      <label>window start <input type="date" name="window_start" required value="{{$f.window_start}}"></label>
+      <label>window end <input type="date" name="window_end" required value="{{$f.window_end}}"></label>
+      <label>nights <span class="pair"><input type="number" name="nights_min" min="1" value="{{or $f.nights_min "7"}}"> – <input type="number" name="nights_max" min="1" value="{{or $f.nights_max "12"}}"></span></label>
     </div>
-    <label class="check"><input type="checkbox" name="weekends" {{if eq $f.weekends "on"}}checked{{end}}> Weekends only (Fri/Sat out, Sun/Mon back)</label>
+    <label class="check"><input type="checkbox" name="weekends" {{if eq $f.weekends "on"}}checked{{end}}> weekends only (Fri/Sat out, Sun/Mon back)</label>
     {{template "common" $d}}
-    <button class="primary">Add flexible trip</button>
+    <button class="primary">add flexible trip</button>
   </form>
 
   <form method="post" action="/trips" class="panel" id="panel-explore">
     <input type="hidden" name="mode" value="explore">
-    <p class="muted">Want to go somewhere on these dates; find cool options cheap for everyone.</p>
+    <p class="label">Want to go somewhere on these dates; find what's cheap for everyone.</p>
     <div class="grid">
-      <label>Region <select name="region">{{range $d.Regions}}<option value="{{.}}" {{if eq . $f.region}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-      <label>Window start <input type="date" name="window_start" required value="{{$f.window_start}}"></label>
-      <label>Window end <input type="date" name="window_end" required value="{{$f.window_end}}"></label>
-      <label>Nights <span class="pair"><input type="number" name="nights_min" min="1" value="{{or $f.nights_min "4"}}"> – <input type="number" name="nights_max" min="1" value="{{or $f.nights_max "6"}}"></span></label>
+      <label>region <select name="region">{{range $d.Regions}}<option value="{{.}}" {{if eq . $f.region}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+      <label>window start <input type="date" name="window_start" required value="{{$f.window_start}}"></label>
+      <label>window end <input type="date" name="window_end" required value="{{$f.window_end}}"></label>
+      <label>nights <span class="pair"><input type="number" name="nights_min" min="1" value="{{or $f.nights_min "4"}}"> – <input type="number" name="nights_max" min="1" value="{{or $f.nights_max "6"}}"></span></label>
     </div>
-    <label class="check"><input type="checkbox" name="weekends" {{if eq $f.weekends "on"}}checked{{end}}> Weekends only</label>
+    <label class="check"><input type="checkbox" name="weekends" {{if eq $f.weekends "on"}}checked{{end}}> weekends only</label>
     {{template "common" $d}}
-    <button class="primary">Add explore trip</button>
+    <button class="primary">add explore trip</button>
   </form>
 </div>
 </section>
@@ -93,15 +93,15 @@
 {{define "common"}}
 {{$f := .Form}}
 <div class="grid">
-  <fieldset class="travelers"><legend>Travelers</legend>
-    {{range .Travelers}}<label class="check"><input type="checkbox" name="travelers" value="{{.ID}}" checked> {{.Name}} <span class="muted">{{.HomesString}}</span></label>{{end}}
+  <fieldset><legend>travelers</legend>
+    {{range .Travelers}}<label class="check"><input type="checkbox" name="travelers" value="{{.ID}}" checked> {{.Name}} <span class="subtle">{{.HomesString}}</span></label>{{end}}
   </fieldset>
-  <label>Cabin <select name="cabin">{{range .Cabins}}<option value="{{.}}" {{if eq (print .) $f.cabin}}selected{{end}}>{{.}}</option>{{end}}</select></label>
-  <label>Target $ / person <input type="number" name="target_usd" min="0" step="1" placeholder="600" value="{{$f.target_usd}}"></label>
-  <label>Max stops <select name="max_stops"><option value="any">any</option><option value="0" {{if eq $f.max_stops "0"}}selected{{end}}>nonstop</option><option value="1" {{if eq $f.max_stops "1"}}selected{{end}}>1</option></select></label>
-  <label>Airlines <input name="airlines" placeholder="DL, UA, WN (blank = any)" value="{{$f.airlines}}"></label>
+  <label>cabin <select name="cabin">{{range .Cabins}}<option value="{{.}}" {{if eq (print .) $f.cabin}}selected{{end}}>{{.}}</option>{{end}}</select></label>
+  <label>target $ / person <input type="number" name="target_usd" min="0" step="1" placeholder="600" value="{{$f.target_usd}}"></label>
+  <label>max stops <select name="max_stops"><option value="any">any</option><option value="0" {{if eq $f.max_stops "0"}}selected{{end}}>nonstop</option><option value="1" {{if eq $f.max_stops "1"}}selected{{end}}>1</option></select></label>
+  <label>airlines <input name="airlines" placeholder="DL, UA, WN (blank = any)" value="{{$f.airlines}}"></label>
 </div>
 <div class="row">
-  <label class="check"><input type="checkbox" name="one_way" {{if eq $f.one_way "on"}}checked{{end}}> One-way</label>
+  <label class="check"><input type="checkbox" name="one_way" {{if eq $f.one_way "on"}}checked{{end}}> one-way</label>
 </div>
 {{end}}

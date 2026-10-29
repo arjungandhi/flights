@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/arjungandhi/flights/pkg/db"
+	"github.com/arjungandhi/flights/pkg/geo"
 	"github.com/arjungandhi/flights/pkg/model"
 	"github.com/arjungandhi/flights/pkg/pricing"
 	"github.com/arjungandhi/flights/pkg/scan"
@@ -21,7 +22,7 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
-//go:embed static/*
+//go:embed static/* static/fonts/*
 var staticFS embed.FS
 
 type Server struct {
@@ -126,6 +127,18 @@ var funcs = template.FuncMap{
 			return "—"
 		}
 		return t.Local().Format("Jan 2 15:04")
+	},
+	"handDate": func(t time.Time) string {
+		if t.IsZero() {
+			return "—"
+		}
+		return strings.ToLower(t.Local().Format("Jan 2 · 15:04"))
+	},
+	"city": func(code string) string {
+		if c := geo.City(code); c != "" {
+			return c
+		}
+		return code
 	},
 	"shortDate": func(s string) string {
 		t, err := time.Parse(model.DateLayout, s)

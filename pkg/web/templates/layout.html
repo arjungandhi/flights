@@ -5,19 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} · flights</title>
 <link rel="stylesheet" href="/static/app.css">
-<link rel="icon" type="image/svg+xml" href="/static/logo.svg">
-<link rel="icon" type="image/png" sizes="512x512" href="/static/logo.png">
-<link rel="apple-touch-icon" href="/static/logo.png">
 <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 </head>
 <body>
 <header>
-  <a class="brand" href="/"><span class="logo"></span> flights</a>
+  <a class="brand" href="/">flight <em>log</em></a>
   <nav>
-    <a href="/" {{if eq .Active "trips"}}class="on"{{end}}>Trips</a>
-    <a href="/explore" {{if eq .Active "explore"}}class="on"{{end}}>Explore</a>
-    <a href="/travelers" {{if eq .Active "travelers"}}class="on"{{end}}>Travelers</a>
-    <a href="/settings" {{if eq .Active "settings"}}class="on"{{end}}>Settings</a>
+    <a href="/" {{if eq .Active "trips"}}class="on"{{end}}>trips</a>
+    <a href="/explore" {{if eq .Active "explore"}}class="on"{{end}}>explore</a>
+    <a href="/travelers" {{if eq .Active "travelers"}}class="on"{{end}}>travelers</a>
+    <a href="/settings" {{if eq .Active "settings"}}class="on"{{end}}>settings</a>
   </nav>
 </header>
 <main>

@@ -119,7 +119,7 @@ Alerts are recorded in `alerts` before sending, so a crashed notify command lose
 
 # Web UI
 
-The only surface. Partners use it, so nothing requires a shell. Go `net/http` + `html/template` + htmx for partial updates; no JS build step. Written in Go, not a JS framework: the UI is tables and forms, and one `go build` ships the whole app. Pages:
+The only surface. Partners use it, so nothing requires a shell. Go `net/http` + `html/template` + htmx for partial updates; no JS build step. Written in Go, not a JS framework: the UI is tables and forms, and one `go build` ships the whole app. Styled with the monkey "logbook" design system (warm paper, 28px rule, Fraunces headings, Newsreader body, Caveat only for dates/margin notes, one pen colour per page); fonts are embedded. Pages:
 
 - **Trips**: table of trips (mode, travelers, best effective price per person and total, Δ since last scan, last scanned, status). Row actions: pause/resume, delete. Add-trip form with three tabs matching the modes:
   - Destination: airport or metro code (`NRT`, `TYO`, `LON`) with typeahead; absent on the Explore tab, which has a region select (`anywhere`, `europe`, `asia`, `latam`, ...).
