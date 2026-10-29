@@ -165,6 +165,7 @@ var funcs = template.FuncMap{
 	},
 	"sparkline": sparkline,
 	"bookLink":  bookLink,
+	"amexLink":  amexLink,
 	"googleLink": func(origin, dest, out, ret string) string {
 		return bookLink(model.Offer{Kind: model.KindCash, Origin: origin, Dest: dest, OutDate: out, RetDate: ret})
 	},

@@ -19,11 +19,11 @@ func Seed(d *db.DB) error {
 		return nil // already populated
 	}
 	now := time.Now()
-	arjun, err := d.AddTraveler("Arjun", []string{"DEN"})
+	arjun, err := d.AddTraveler("Arjun", []string{"DEN"}, []string{"DL", "UA"})
 	if err != nil {
 		return err
 	}
-	sneha, err := d.AddTraveler("Sneha", []string{"LGA", "JFK"})
+	sneha, err := d.AddTraveler("Sneha", []string{"LGA", "JFK"}, nil)
 	if err != nil {
 		return err
 	}

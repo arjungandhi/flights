@@ -44,7 +44,9 @@ func Bookable(o model.Offer, t model.Traveler) bool {
 // Pick is one traveler's chosen option for a date pair.
 type Pick struct {
 	Traveler  model.Traveler
-	Cash      *model.Offer // cheapest cash, may be nil
+	Cash      *model.Offer // chosen cash fare: the cheapest, or a preferred-airline fare within tolerance
+	Cheapest  *model.Offer // the cheapest cash fare when Cash is a preferred-airline upgrade; else nil
+	Preferred *model.Offer // cheapest fare on a preferred airline, may be nil
 	Award     *model.Offer // best bookable award, may be nil
 	Effective float64      // min of the two
 	UsesAward bool
@@ -103,6 +105,9 @@ func Candidates(trip model.Trip, offers []model.Offer, s db.Settings) []Candidat
 			if p.Cash == nil || eff < Effective(*p.Cash, s) {
 				p.Cash = o
 			}
+			if t.Prefers(o.Airline) && (p.Preferred == nil || eff < Effective(*p.Preferred, s)) {
+				p.Preferred = o
+			}
 		case model.KindAward:
 			if !Bookable(*o, t) {
 				continue
@@ -122,6 +127,9 @@ func Candidates(trip model.Trip, offers []model.Offer, s db.Settings) []Candidat
 			p := g[t.ID]
 			p.Effective = math.Inf(1)
 			if p.Cash != nil {
+				if p.Preferred != nil && p.Preferred != p.Cash && p.Preferred.PriceUSD <= p.Cash.PriceUSD*(1+s.PreferPct/100) {
+					p.Cheapest, p.Cash = p.Cash, p.Preferred
+				}
 				p.Effective = Effective(*p.Cash, s)
 			}
 			if p.Award != nil {

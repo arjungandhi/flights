@@ -12,7 +12,7 @@ import (
 var ErrNotFound = errors.New("not found")
 
 func (d *DB) Travelers() ([]model.Traveler, error) {
-	rows, err := d.conn.Query(`SELECT id, name, homes FROM travelers ORDER BY name`)
+	rows, err := d.conn.Query(`SELECT id, name, homes, airlines FROM travelers ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -20,11 +20,12 @@ func (d *DB) Travelers() ([]model.Traveler, error) {
 	var out []model.Traveler
 	for rows.Next() {
 		var t model.Traveler
-		var homes string
-		if err := rows.Scan(&t.ID, &t.Name, &homes); err != nil {
+		var homes, airlines string
+		if err := rows.Scan(&t.ID, &t.Name, &homes, &airlines); err != nil {
 			return nil, err
 		}
 		t.Homes = splitList(homes)
+		t.Airlines = splitList(airlines)
 		t.Balances = map[string]model.Balance{}
 		out = append(out, t)
 	}
@@ -59,16 +60,16 @@ func (d *DB) loadBalances(ts []model.Traveler) error {
 	return rows.Err()
 }
 
-func (d *DB) AddTraveler(name string, homes []string) (int64, error) {
-	res, err := d.conn.Exec(`INSERT INTO travelers(name, homes) VALUES(?, ?)`, name, joinList(homes))
+func (d *DB) AddTraveler(name string, homes, airlines []string) (int64, error) {
+	res, err := d.conn.Exec(`INSERT INTO travelers(name, homes, airlines) VALUES(?, ?, ?)`, name, joinList(homes), joinList(airlines))
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
-func (d *DB) UpdateTraveler(id int64, name string, homes []string) error {
-	_, err := d.conn.Exec(`UPDATE travelers SET name = ?, homes = ? WHERE id = ?`, name, joinList(homes), id)
+func (d *DB) UpdateTraveler(id int64, name string, homes, airlines []string) error {
+	_, err := d.conn.Exec(`UPDATE travelers SET name = ?, homes = ?, airlines = ? WHERE id = ?`, name, joinList(homes), joinList(airlines), id)
 	return err
 }
 

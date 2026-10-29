@@ -81,7 +81,19 @@ type Traveler struct {
 	ID       int64
 	Name     string
 	Homes    []string // airport codes; any is an acceptable origin
+	Airlines []string // preferred carriers; a fare on one of these wins when within the tolerance of the cheapest
 	Balances map[string]Balance
+}
+
+func (t Traveler) AirlinesString() string { return strings.Join(t.Airlines, ", ") }
+
+func (t Traveler) Prefers(airline string) bool {
+	for _, a := range t.Airlines {
+		if a == airline {
+			return true
+		}
+	}
+	return false
 }
 
 func (t Traveler) HomesString() string { return strings.Join(t.Homes, ", ") }

@@ -217,7 +217,6 @@ type tripPage struct {
 	Spark      []model.PricePoint
 	LastScan   model.Scan
 	Settings   db.Settings
-	AmexURL    string
 }
 
 func (s *Server) trip(w http.ResponseWriter, r *http.Request) {
@@ -261,7 +260,7 @@ func (s *Server) trip(w http.ResponseWriter, r *http.Request) {
 		cands = cands[:20]
 	}
 	s.render(w, "trip", page{Title: id, Active: "trips", Data: tripPage{
-		Trip: t, Candidates: cands, Alerts: alerts, Spark: spark, LastScan: last[id], Settings: settings, AmexURL: amexTravelURL,
+		Trip: t, Candidates: cands, Alerts: alerts, Spark: spark, LastScan: last[id], Settings: settings,
 	}})
 }
 
@@ -397,6 +396,16 @@ func parseHomes(s string) ([]string, error) {
 	return homes, nil
 }
 
+func parseAirlines(s string) []string {
+	var out []string
+	for _, a := range strings.Split(s, ",") {
+		if a = strings.ToUpper(strings.TrimSpace(a)); a != "" {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 func (s *Server) addTraveler(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(r.FormValue("name"))
 	homes, err := parseHomes(r.FormValue("homes"))
@@ -404,7 +413,7 @@ func (s *Server) addTraveler(w http.ResponseWriter, r *http.Request) {
 		err = errors.New("name is required")
 	}
 	if err == nil {
-		_, err = s.DB.AddTraveler(name, homes)
+		_, err = s.DB.AddTraveler(name, homes, parseAirlines(r.FormValue("airlines")))
 	}
 	if err != nil {
 		http.Redirect(w, r, "/travelers?error="+errString(err), http.StatusSeeOther)
@@ -421,7 +430,7 @@ func (s *Server) updateTraveler(w http.ResponseWriter, r *http.Request) {
 		err = errors.New("name is required")
 	}
 	if err == nil {
-		err = s.DB.UpdateTraveler(id, name, homes)
+		err = s.DB.UpdateTraveler(id, name, homes, parseAirlines(r.FormValue("airlines")))
 	}
 	if err != nil {
 		http.Redirect(w, r, "/travelers?error="+errString(err), http.StatusSeeOther)
@@ -551,6 +560,9 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	if cur.AmexRebatePct, err = num("amex_rebate_pct", 0, 99); err == nil {
 		cur.SWRate, err = num("sw_rate", 0.001, 0.1)
+	}
+	if err == nil {
+		cur.PreferPct, err = num("prefer_pct", 0, 100)
 	}
 	for _, p := range model.Programs {
 		if err != nil {

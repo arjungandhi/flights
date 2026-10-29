@@ -21,6 +21,11 @@
     <label>rebate airline (economy) <input name="amex_rebate_airline" value="{{$s.AmexRebateAirline}}" placeholder="DL" maxlength="2"></label>
   </div>
 
+  <div class="rule">airline preference</div>
+  <div class="grid">
+    <label>tolerance % <input name="prefer_pct" type="number" step="1" min="0" max="100" value="{{$s.PreferPct}}"><span class="subtle small">A traveler's preferred airline wins when its fare is within this much of the cheapest.</span></label>
+  </div>
+
   <div class="rule">alerts</div>
   <div class="grid">
     <label>Matrix room id <input name="notify_room" value="{{$s.NotifyRoom}}" placeholder="!abc:matrix.org"></label>

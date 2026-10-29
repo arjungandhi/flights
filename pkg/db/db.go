@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/arjungandhi/flights/pkg/model"
 	_ "modernc.org/sqlite"
@@ -46,6 +47,23 @@ func Open(dir string) (*DB, error) {
 		conn.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
+	// Columns added after the first release. ADD COLUMN is idempotent here because a
+	// "duplicate column" error is the only failure mode and is ignored.
+	for _, stmt := range []string{
+		`ALTER TABLE travelers ADD COLUMN airlines TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE trips ADD COLUMN arrive_by TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE offers ADD COLUMN depart_time TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE offers ADD COLUMN arrive_time TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE offers ADD COLUMN arrive_on TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE offers ADD COLUMN price_level INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE offers ADD COLUMN typical_low REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE offers ADD COLUMN typical_high REAL NOT NULL DEFAULT 0`,
+	} {
+		if _, err := conn.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			conn.Close()
+			return nil, fmt.Errorf("migrate: %w", err)
+		}
+	}
 	return &DB{conn: conn}, nil
 }
 
@@ -58,6 +76,7 @@ type Settings struct {
 	SWRate            float64 // dollars per Southwest point
 	AmexRebateAirline string
 	AmexRebatePct     float64
+	PreferPct         float64 // a preferred-airline fare wins when within this % of the cheapest
 	NotifyRoom        string
 	BaseURL           string // used in alert text links
 }
@@ -67,6 +86,7 @@ func DefaultSettings() Settings {
 		CPP:           map[string]float64{},
 		SWRate:        0.014,
 		AmexRebatePct: 35,
+		PreferPct:     10,
 	}
 	for _, p := range model.Programs {
 		s.CPP[p.ID] = p.DefaultCPP
@@ -103,6 +123,8 @@ func (d *DB) Settings() (Settings, error) {
 			s.AmexRebateAirline = v
 		case "amex_rebate_pct":
 			s.AmexRebatePct, _ = strconv.ParseFloat(v, 64)
+		case "prefer_pct":
+			s.PreferPct, _ = strconv.ParseFloat(v, 64)
 		case "notify_room":
 			s.NotifyRoom = v
 		case "base_url":
@@ -122,6 +144,7 @@ func (d *DB) SaveSettings(s Settings) error {
 		"sw_rate":             strconv.FormatFloat(s.SWRate, 'f', -1, 64),
 		"amex_rebate_airline": s.AmexRebateAirline,
 		"amex_rebate_pct":     strconv.FormatFloat(s.AmexRebatePct, 'f', -1, 64),
+		"prefer_pct":          strconv.FormatFloat(s.PreferPct, 'f', -1, 64),
 		"notify_room":         s.NotifyRoom,
 		"base_url":            s.BaseURL,
 	}

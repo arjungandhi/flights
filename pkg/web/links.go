@@ -1,8 +1,12 @@
 package web
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/arjungandhi/flights/pkg/model"
 	"github.com/arjungandhi/flights/pkg/source/google"
@@ -59,4 +63,43 @@ func bookLink(o model.Offer) string {
 	return ""
 }
 
-const amexTravelURL = "https://www.amextravel.com/flight-searches"
+// amexLink opens the same search on Amex Travel (pay with points). The site encodes its
+// search as base64(urlencode(JSON)) behind a login redirect; captured 2026-10-28 from a live
+// search. Locations are keyed by IATA code as ZAPRT-GEONAMES-<code>.
+func amexLink(o model.Offer, cabin model.Cabin) string {
+	loc := func(code string) map[string]any {
+		return map[string]any{"query": code, "name": code, "label": code, "airportCode": code, "type": "AIRPORT",
+			"id": "ZAPRT-GEONAMES-" + code, "searchIdType": "LOCATION_ID"}
+	}
+	us := func(d string) string {
+		t, err := time.Parse(model.DateLayout, d)
+		if err != nil {
+			return ""
+		}
+		return t.Format("01/02/2006")
+	}
+	class, trip := "ECONOMY", "ROUND_TRIP"
+	switch cabin {
+	case model.CabinPremium:
+		class = "PREMIUM_ECONOMY"
+	case model.CabinBusiness:
+		class = "BUSINESS"
+	}
+	flight := map[string]any{"startLocation": loc(o.Origin), "endLocation": loc(o.Dest), "startDate": us(o.OutDate), "startTime": "ANYTIME", "endTime": "ANYTIME"}
+	if o.RetDate == "" {
+		trip = "ONE_WAY"
+	} else {
+		flight["endDate"] = us(o.RetDate)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"request": map[string]any{
+			"flights":     []any{flight},
+			"travelers":   []any{map[string]any{"adults": 1, "children": []any{}, "infants": []any{}, "pets": 0}},
+			"flightClass": class, "tripType": trip, "isNonStop": false, "isFlexibleDate": false, "airline": nil,
+		},
+		"searchType": "flights",
+	})
+	// encodeURIComponent-style: QueryEscape but %20 for spaces.
+	rb := base64.StdEncoding.EncodeToString([]byte(strings.ReplaceAll(url.QueryEscape(string(body)), "+", "%20")))
+	return "https://prebooking.americanexpress.com/en-us/travel/search-redirect?requestBody=" + url.QueryEscape(rb)
+}

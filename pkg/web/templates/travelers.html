@@ -8,6 +8,7 @@
   <form method="post" action="/travelers/{{.ID}}" class="row">
     <label>name <input name="name" value="{{.Name}}" required></label>
     <label>home airports <input name="homes" value="{{.HomesString}}" placeholder="DEN" required></label>
+    <label>preferred airlines <input name="airlines" value="{{.AirlinesString}}" placeholder="DL, UA"></label>
     <button class="ghost">save</button>
   </form>
   <form method="post" action="/travelers/{{.ID}}/balances">
@@ -35,6 +36,7 @@
 <form method="post" action="/travelers" class="row">
   <label>name <input name="name" required></label>
   <label>home airports <input name="homes" placeholder="LGA, JFK" required></label>
+  <label>preferred airlines <input name="airlines" placeholder="DL, UA"></label>
   <button class="primary">add</button>
 </form>
 </section>

@@ -4,7 +4,8 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS travelers (
     id    INTEGER PRIMARY KEY,
     name  TEXT NOT NULL UNIQUE,
-    homes TEXT NOT NULL -- comma-separated airport codes
+    homes TEXT NOT NULL, -- comma-separated airport codes
+    airlines TEXT NOT NULL DEFAULT '' -- preferred carriers, comma-separated
 );
 
 CREATE TABLE IF NOT EXISTS balances (
