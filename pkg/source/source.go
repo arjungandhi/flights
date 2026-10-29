@@ -26,6 +26,9 @@ type Itinerary struct {
 	Stops    int
 	Legs     string // "UA837 SFO→NRT, NH7 NRT→..." for display
 	Duration int    // minutes
+	Depart   string // HH:MM local, first leg
+	Arrive   string // HH:MM local, last leg
+	ArriveOn string // YYYY-MM-DD the last leg lands; differs from the search date on red-eyes
 	Link     string // opaque params to rebuild a booking link; source-specific
 }
 

@@ -38,7 +38,7 @@
     {{if .Cash}}
       <div class="{{if not .UsesAward}}chosen{{end}}">
         <a href="{{bookLink .Cash}}" target="_blank">{{usd .Cash.PriceUSD}}</a> cash
-        <span class="muted">{{.Cash.Origin}} · {{.Cash.Airline}}{{if .Cash.Stops}} · {{.Cash.Stops}} stop{{else}} · nonstop{{end}}{{if .Cash.TypicalLow}} · <span class="{{if eq .Cash.PriceLevel 1}}good{{else if eq .Cash.PriceLevel 3}}warn{{end}}" title="Google's typical range for these dates">typical {{usd .Cash.TypicalLow}}–{{usd .Cash.TypicalHi}}</span>{{end}}</span>
+        <span class="muted">{{.Cash.Origin}} · {{.Cash.Airline}}{{if .Cash.Stops}} · {{.Cash.Stops}} stop{{else}} · nonstop{{end}}{{if .Cash.DepartTime}} · {{shortDate .Cash.OutDate}} {{.Cash.DepartTime}}→{{.Cash.ArriveTime}}{{if ne .Cash.ArriveOn .Cash.OutDate}} +1{{end}}{{end}}{{if .Cash.TypicalLow}} · <span class="{{if eq .Cash.PriceLevel 1}}good{{else if eq .Cash.PriceLevel 3}}warn{{end}}" title="Google's typical range for these dates">typical {{usd .Cash.TypicalLow}}–{{usd .Cash.TypicalHi}}</span>{{end}}</span>
         <div class="muted">or <a href="{{$d.AmexURL}}" target="_blank">{{pts (amexPts .Cash.PriceUSD $s)}} MR</a> via Amex Travel</div>
       </div>
     {{end}}

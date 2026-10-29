@@ -24,12 +24,13 @@ var ErrNoSources = errors.New("no cash source configured")
 const (
 	coarseFixed    = 25
 	coarseFlexible = 16
-	coarseExplore  = 3
+	coarseExplore  = 1 // per destination, first home airport per traveler only
 	refineTop      = 3
 	refineDays     = 2
-	refineDests    = 5
-	refinePairs    = 6
+	refineDests    = 8
+	refinePairs    = 5
 	maxPagesTrip   = 160
+	maxPagesExplor = 500
 	maxFailures    = 5
 	// Flexible/explore trips are page-hungry; they rescan once a day unless forced.
 	slowRescan = 20 * time.Hour
@@ -43,6 +44,13 @@ type Runner struct {
 
 	mu      sync.Mutex
 	running bool
+}
+
+// Busy reports whether a pass is in progress.
+func (r *Runner) Busy() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.running
 }
 
 // Run scans every active trip, or just tripID when non-empty. force bypasses the daily
@@ -156,6 +164,7 @@ type priceRun struct {
 	t        model.Trip
 	settings db.Settings
 	calls    int
+	maxCalls int
 	failures int
 	offers   []model.Offer
 	done     map[string]bool
@@ -184,7 +193,10 @@ func (r *Runner) price(ctx context.Context, t model.Trip, settings db.Settings) 
 	default:
 		dests = []string{t.Dest}
 	}
-	run := &priceRun{r: r, t: t, settings: settings, done: map[string]bool{}}
+	run := &priceRun{r: r, t: t, settings: settings, done: map[string]bool{}, maxCalls: maxPagesTrip}
+	if t.Mode == model.ModeExplore {
+		run.maxCalls = maxPagesExplor
+	}
 
 	coarse := coarseFixed
 	switch t.Mode {
@@ -194,8 +206,15 @@ func (r *Runner) price(ctx context.Context, t model.Trip, settings db.Settings) 
 		coarse = coarseExplore
 	}
 	sample := Sample(pairs, coarse)
+	if t.Mode == model.ModeExplore && len(pairs) > 2 {
+		sample = []Pair{pairs[len(pairs)/2]} // the middle of the window; refine widens for the winners
+	}
+	coarseTravelers := travelers
+	if t.Mode == model.ModeExplore {
+		coarseTravelers = firstHomes(travelers)
+	}
 	for _, d := range dests {
-		if err := run.priceSet(ctx, travelers, d, sample); err != nil {
+		if err := run.priceSet(ctx, coarseTravelers, d, sample); err != nil {
 			return run.offers, run.calls, err
 		}
 	}
@@ -213,16 +232,8 @@ func (r *Runner) price(ctx context.Context, t model.Trip, settings db.Settings) 
 			if len(seen) > refineDests {
 				break
 			}
-			skip := map[Pair]bool{}
-			for _, p := range sample {
-				skip[p] = true
-			}
-			var more []Pair
-			for _, p := range Sample(pairs, refinePairs+coarse) {
-				if !skip[p] {
-					more = append(more, p)
-				}
-			}
+			// All homes, more dates; priceSet skips the (traveler, home, pair) already done.
+			more := append(Sample(pairs, refinePairs), sample...)
 			if err := run.priceSet(ctx, travelers, c.Dest, more); err != nil {
 				return run.offers, run.calls, err
 			}
@@ -251,6 +262,18 @@ func (r *Runner) price(ctx context.Context, t model.Trip, settings db.Settings) 
 	return run.offers, run.calls, nil
 }
 
+// firstHomes narrows each traveler to their first home airport for the coarse explore pass.
+func firstHomes(ts []model.TripTraveler) []model.TripTraveler {
+	out := make([]model.TripTraveler, len(ts))
+	for i, t := range ts {
+		out[i] = t
+		if len(t.Homes) > 1 {
+			out[i].Homes = t.Homes[:1]
+		}
+	}
+	return out
+}
+
 // priceSet fetches every (traveler, home, pair) for one destination.
 func (p *priceRun) priceSet(ctx context.Context, travelers []model.TripTraveler, dest string, pairs []Pair) error {
 	for _, pair := range pairs {
@@ -263,8 +286,8 @@ func (p *priceRun) priceSet(ctx context.Context, travelers []model.TripTraveler,
 				if p.done[key] {
 					continue
 				}
-				if p.calls >= maxPagesTrip {
-					return fmt.Errorf("page budget (%d) reached; results are partial", maxPagesTrip)
+				if p.calls >= p.maxCalls {
+					return fmt.Errorf("page budget (%d) reached; results are partial", p.maxCalls)
 				}
 				p.done[key] = true
 				q := source.Query{Origin: home, Dest: dest, Out: pair.Out, Ret: pair.Ret, Cabin: p.t.Cabin, MaxStops: p.t.MaxStops, Airlines: p.t.Airlines}
@@ -298,11 +321,18 @@ func (p *priceRun) add(tr model.TripTraveler, q source.Query, res source.Result)
 	if len(res.Itineraries) == 0 {
 		return
 	}
+	if p.t.ArriveBy != "" {
+		res.Itineraries = arrivingBy(res.Itineraries, p.t.Depart, p.t.ArriveBy)
+		if len(res.Itineraries) == 0 {
+			return
+		}
+	}
 	now := time.Now()
 	mk := func(it source.Itinerary) model.Offer {
 		return model.Offer{
 			TripID: p.t.ID, TravelerID: tr.ID, Origin: q.Origin, Dest: q.Dest, OutDate: q.Out, RetDate: q.Ret,
 			Kind: model.KindCash, PriceUSD: it.PriceUSD, Airline: it.Airline, Stops: it.Stops,
+			DepartTime: it.Depart, ArriveTime: it.Arrive, ArriveOn: it.ArriveOn,
 			PriceLevel: res.Insight.Level, TypicalLow: res.Insight.TypicalLow, TypicalHi: res.Insight.TypicalHi,
 			SeenAt: now, LinkParams: it.Link,
 		}
@@ -317,6 +347,17 @@ func (p *priceRun) add(tr model.TripTraveler, q source.Query, res source.Result)
 			}
 		}
 	}
+}
+
+// arrivingBy keeps itineraries whose outbound lands on day by hhmm (string compare works on HH:MM).
+func arrivingBy(its []source.Itinerary, day, hhmm string) []source.Itinerary {
+	var out []source.Itinerary
+	for _, it := range its {
+		if it.ArriveOn == day && it.Arrive != "" && it.Arrive <= hhmm {
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 // Loop runs a scan every interval until ctx is done. The first run is immediate.

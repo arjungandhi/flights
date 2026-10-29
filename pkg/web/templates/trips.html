@@ -53,6 +53,7 @@
       <label>Depart <input type="date" name="depart" required value="{{$f.depart}}"></label>
       <label>Return <input type="date" name="return" value="{{$f.return}}"></label>
       <label>± days <input type="number" name="slack" min="0" max="7" value="{{or $f.slack "0"}}"></label>
+      <label>Arrive by <input type="time" name="arrive_by" value="{{$f.arrive_by}}"><span class="muted small">Optional. Must land on the depart date by this time; red-eyes the night before count.</span></label>
     </div>
     {{template "common" $d}}
     <button class="primary">Add fixed trip</button>

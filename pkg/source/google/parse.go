@@ -15,6 +15,7 @@ import (
 //	row[0] = detail: [0] primary airline code, [2] legs, [9] duration minutes
 //	row[1] = price: [[..., amount], token]; empty head = no pre-computed price
 //	leg[22] = [airline, flight number, operating airline], leg[3] from, leg[6] to, leg[11] minutes
+//	leg[8] departure [h, m?], leg[10] arrival [h, m?], leg[20] departure [y,m,d], leg[21] arrival [y,m,d]
 //	[5] = price insight: [level, [_,current], [_,usual], [_,delta], [_,typical low], [_,typical high], ...]
 func parse(raw json.RawMessage) (source.Result, error) {
 	var top []json.RawMessage
@@ -90,6 +91,11 @@ func parseRow(raw json.RawMessage) (source.Itinerary, bool) {
 		json.Unmarshal(leg[6], &to)
 		if i == 0 {
 			it.Airline = airline
+			it.Depart = clock(leg[8])
+		}
+		if i == len(legs)-1 {
+			it.Arrive = clock(leg[10])
+			it.ArriveOn = ymd(leg[21])
 		}
 		parts = append(parts, airline+num+" "+from+"→"+to)
 	}
@@ -98,6 +104,27 @@ func parseRow(raw json.RawMessage) (source.Itinerary, bool) {
 	}
 	it.Legs = strings.Join(parts, ", ")
 	return it, true
+}
+
+// clock renders Google's [h] / [h, m] time arrays as HH:MM.
+func clock(raw json.RawMessage) string {
+	var hm []int
+	if json.Unmarshal(raw, &hm) != nil || len(hm) == 0 {
+		return ""
+	}
+	m := 0
+	if len(hm) > 1 {
+		m = hm[1]
+	}
+	return fmt.Sprintf("%02d:%02d", hm[0], m)
+}
+
+func ymd(raw json.RawMessage) string {
+	var d []int
+	if json.Unmarshal(raw, &d) != nil || len(d) < 3 {
+		return ""
+	}
+	return fmt.Sprintf("%04d-%02d-%02d", d[0], d[1], d[2])
 }
 
 func parseInsight(raw json.RawMessage) source.Insight {

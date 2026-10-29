@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -13,7 +14,6 @@ import (
 	"github.com/arjungandhi/flights/pkg/db"
 	"github.com/arjungandhi/flights/pkg/model"
 	"github.com/arjungandhi/flights/pkg/pricing"
-	"github.com/arjungandhi/flights/pkg/scan"
 )
 
 // ---- Trips ----
@@ -164,6 +164,11 @@ func parseTripForm(r *http.Request) (model.Trip, []int64, error) {
 		t.Slack, _ = strconv.Atoi(f.Get("slack"))
 		if t.Slack < 0 || t.Slack > 7 {
 			return t, nil, errors.New("slack must be 0–7 days")
+		}
+		if t.ArriveBy = f.Get("arrive_by"); t.ArriveBy != "" {
+			if _, err := time.Parse("15:04", t.ArriveBy); err != nil {
+				return t, nil, errors.New("arrive by must be HH:MM")
+			}
 		}
 		if t.TargetUSD == 0 {
 			return t, nil, errors.New("target price is required for fixed trips")
@@ -563,23 +568,32 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings?flash=saved", http.StatusSeeOther)
 }
 
-// scanNow runs one pass synchronously and returns the scan-health partial for htmx.
+// scanNow starts a forced pass in the background (explore scans run for many minutes) and
+// returns the scan-health partial for htmx. Results land in the scans table when done.
 func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
-	defer cancel()
-	err := s.Runner.Run(ctx, r.FormValue("trip"), true)
-	data, derr := s.settingsData()
-	if derr != nil {
-		s.fail(w, derr)
+	tripID := r.FormValue("trip")
+	if s.Runner.Busy() {
+		s.scanResult(w, r, "A scan is already running; results appear in Scan health when it finishes.")
 		return
 	}
-	p := page{Data: data}
-	if err != nil && !errors.Is(err, scan.ErrNoSources) {
-		p.Error = err.Error()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
+		defer cancel()
+		if err := s.Runner.Run(ctx, tripID, true); err != nil {
+			log.Printf("scan now: %v", err)
+		}
+	}()
+	time.Sleep(300 * time.Millisecond) // let a trivially failing scan record itself before we render
+	s.scanResult(w, r, "Scan started. Refresh in a bit; each page takes ~3 s.")
+}
+
+func (s *Server) scanResult(w http.ResponseWriter, r *http.Request, flash string) {
+	data, err := s.settingsData()
+	if err != nil {
+		s.fail(w, err)
+		return
 	}
-	if errors.Is(err, scan.ErrNoSources) {
-		p.Error = "No cash source configured."
-	}
+	p := page{Data: data, Flash: flash}
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := s.pages["settings"].ExecuteTemplate(w, "scans", p); err != nil {
@@ -587,7 +601,7 @@ func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	http.Redirect(w, r, "/settings?error="+errString(errors.New(p.Error)), http.StatusSeeOther)
+	http.Redirect(w, r, "/settings?flash="+errString(errors.New(flash)), http.StatusSeeOther)
 }
 
 // ---- History ----

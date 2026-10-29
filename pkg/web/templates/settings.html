@@ -43,6 +43,7 @@
 {{define "scans"}}
 <div id="scans">
 {{if .Error}}<div class="msg error">{{.Error}}</div>{{end}}
+{{if .Flash}}<div class="msg ok">{{.Flash}}</div>{{end}}
 {{if not .Data.Scans}}<p class="muted">No scans yet.</p>{{else}}
 <table>
 <thead><tr><th>Started</th><th>Trip</th><th>Source</th><th class="num">Calls</th><th>Result</th></tr></thead>

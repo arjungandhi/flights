@@ -88,9 +88,9 @@ Pro API ($9.99/mo, 1,000 calls/day). Cached Search gives per-day availability an
 `pkg/scan`. One pass per active trip. Fixed trips scan every cycle (4h); flexible and explore trips are page-hungry and rescan once per ~20h unless "Scan now" forces it. Budgets are page counts, since pages are the cost:
 
 1. **Enumerate** every allowed `(out, ret)` pair (`Pairs`): fixed = the ±slack grid; flexible/explore = every window date × nights range, weekends-only if set, returns inside the window, nothing before tomorrow.
-2. **Coarse sample** evenly across the list (`Sample`): fixed up to 25 pairs, flexible 16, explore 3 per destination. Price every pair for every unbooked traveler from every home airport. Same pairs for everyone so candidates line up.
-3. **Refine** around what is cheapest for the whole group (`pricing.Candidates` on what's priced so far): fixed/flexible price the ±2-day neighbours of the top 3 candidates at the same trip length; explore prices 6 more pairs for each of the top 5 destinations.
-4. Hard cap 160 pages per trip per scan; 5 consecutive fetch failures abort; a page without results aborts immediately (rate limit or layout change).
+2. **Coarse sample** evenly across the list (`Sample`): fixed up to 25 pairs, flexible 16. Explore prices one pair per destination (the middle of the window) from each traveler's first home airport only. Same pairs for everyone so candidates line up.
+3. **Refine** around what is cheapest for the whole group (`pricing.Candidates` on what's priced so far): fixed/flexible price the ±2-day neighbours of the top 3 candidates at the same trip length; explore prices 5 more pairs from every home airport for each of the top 8 destinations.
+4. Hard cap 160 pages per trip per scan (500 for explore: "anywhere" is ~180 destinations); 5 consecutive fetch failures abort; a page without results aborts immediately (rate limit or layout change).
 
 Measured: fixed DEN+LGA+JFK→LAS = 3 pages, 8 s. Flexible 12-day window, 4–5 nights, 3 home airports = 45 pages, 137 s.
 
@@ -123,14 +123,14 @@ The only surface. Partners use it, so nothing requires a shell. Go `net/http` + 
 
 - **Trips**: table of trips (mode, travelers, best effective price per person and total, Δ since last scan, last scanned, status). Row actions: pause/resume, delete. Add-trip form with three tabs matching the modes:
   - Destination: airport or metro code (`NRT`, `TYO`, `LON`) with typeahead; absent on the Explore tab, which has a region select (`anywhere`, `europe`, `asia`, `latam`, ...).
-  - Dates: Fixed tab = depart + return pickers and ±slack days. Flexible/Explore tabs = window start/end, nights min–max, "weekends only" (Fri/Sat out, Sun/Mon back).
+  - Dates: Fixed tab = depart + return pickers, ±slack days, and an optional "arrive by HH:MM": only itineraries landing on the depart date by that time count, and the day before is searched too so red-eyes qualify. Flexible/Explore tabs = window start/end, nights min–max, "weekends only" (Fri/Sat out, Sun/Mon back).
   - Travelers: checkboxes, all selected by default.
   - Cabin (economy/premium/business), target effective USD per person (required for fixed/flexible, optional for explore), max stops, airline allow-list, one-way.
   - Trip id is a short slug (`nrt-mar10`) used in URLs and alert text.
-- **Trip detail**: ranked candidate table (dest, dates, total, per-traveler breakdown showing cash vs best bookable award and program, "or N MR via Amex Travel" next to cash), sparkline of lowest price per scan, alert history, "Book" links per traveler: Google Flights URL, airline/program award search prefilled with dates (Delta, Virgin Atlantic, Aeroplan, United, Flying Blue, Southwest), Amex Travel. Travelers are marked booked individually; the trip keeps scanning for the rest and stops when everyone is booked.
+- **Trip detail**: ranked candidate table (dest, dates, total, per-traveler breakdown showing cash vs best bookable award and program, departure→arrival times, Google's typical range, "or N MR via Amex Travel" next to cash), sparkline of lowest price per scan, alert history, "Book" links per traveler: Google Flights URL, airline/program award search prefilled with dates (Delta, Virgin Atlantic, Aeroplan, United, Flying Blue, Southwest), Amex Travel. Travelers are marked booked individually; the trip keeps scanning for the rest and stops when everyone is booked.
 - **Explore**: deals board for explore-mode trips: destination cards with price per traveler, deal score vs baseline, best date pairs. The Flights-From-Home-style digest, but intersected across everyone's home airport.
 - **Travelers**: add/remove; name, home airports (one or more; any is an acceptable origin), points balances per program (`delta`, `southwest`, `united`, `amex` = Membership Rewards) with inline edit and last-updated timestamps.
-- **Settings**: seats.aero key (stored, unused until the award source lands), cpp table, Southwest rate, Amex rebate (airline + pct), notify command + Matrix room. Scan health: last 20 scans with calls used, errors, seats.aero calls remaining today. "Scan now" button.
+- **Settings**: seats.aero key (stored, unused until the award source lands), cpp table, Southwest rate, Amex rebate (airline + pct), notify command + Matrix room. Scan health: last 20 scans with calls used, errors. "Scan now" starts a forced pass in the background (one at a time); results appear in the table when it finishes.
 - **Route history** (`/history/SFO/NRT`): lowest price per day over time; the baseline the explore deal score uses.
 
 

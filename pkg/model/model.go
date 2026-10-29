@@ -99,6 +99,7 @@ type Trip struct {
 	Depart      string // fixed: YYYY-MM-DD
 	Return      string // fixed: YYYY-MM-DD; empty when one-way
 	Slack       int    // fixed: ±days
+	ArriveBy    string // fixed: HH:MM; keep only itineraries landing on Depart by this time (searches the day before too)
 	WindowStart string // flexible/explore
 	WindowEnd   string
 	NightsMin   int
@@ -135,6 +136,9 @@ func (t Trip) When() string {
 		}
 		if t.Slack > 0 {
 			s += " ±" + strconv.Itoa(t.Slack) + "d"
+		}
+		if t.ArriveBy != "" {
+			s += ", arrive by " + t.ArriveBy
 		}
 		return s
 	default:
@@ -184,6 +188,9 @@ type Offer struct {
 	Airline      string
 	Stops        int
 	BasicEconomy bool
+	DepartTime   string // HH:MM local
+	ArriveTime   string
+	ArriveOn     string  // YYYY-MM-DD
 	PriceLevel   int     // provider insight: 1 low, 2 typical, 3 high, 0 unknown
 	TypicalLow   float64 // provider's typical price range for this date pair
 	TypicalHi    float64

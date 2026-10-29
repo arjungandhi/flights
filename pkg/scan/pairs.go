@@ -44,7 +44,11 @@ func Pairs(t model.Trip, now time.Time) []Pair {
 			return nil
 		}
 		ret, _ := time.Parse(model.DateLayout, t.Return)
-		for do := -t.Slack; do <= t.Slack; do++ {
+		first := -t.Slack
+		if t.ArriveBy != "" && first > -1 {
+			first = -1 // red-eyes the night before land on the target morning
+		}
+		for do := first; do <= t.Slack; do++ {
 			if t.OneWay {
 				add(dep.AddDate(0, 0, do), time.Time{}, true)
 				continue

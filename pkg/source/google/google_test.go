@@ -26,6 +26,9 @@ func TestParseFixture(t *testing.T) {
 	if first.PriceUSD != 79 || first.Airline != "WN" || first.Stops != 0 || first.Legs != "WN2381 SFO→LAS" || first.Duration != 90 {
 		t.Errorf("first = %+v", first)
 	}
+	if first.Depart != "05:00" || first.Arrive != "06:30" || first.ArriveOn != "2027-03-15" {
+		t.Errorf("times = %s → %s on %s", first.Depart, first.Arrive, first.ArriveOn)
+	}
 	for i := 1; i < len(res.Itineraries); i++ {
 		if res.Itineraries[i].PriceUSD < res.Itineraries[i-1].PriceUSD {
 			t.Errorf("not sorted by price at %d", i)

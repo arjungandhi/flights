@@ -63,14 +63,14 @@ func (d *DB) AddOffers(offers []model.Offer) error {
 	}
 	defer tx.Rollback()
 	stmt, err := tx.Prepare(`INSERT INTO offers(scan_id, trip_id, traveler_id, origin, dest, out_date, ret_date, kind, program,
-		price_usd, miles, taxes_usd, airline, stops, basic_economy, price_level, typical_low, typical_high, seen_at, link_params) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		price_usd, miles, taxes_usd, airline, stops, basic_economy, depart_time, arrive_time, arrive_on, price_level, typical_low, typical_high, seen_at, link_params) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, o := range offers {
 		if _, err := stmt.Exec(o.ScanID, o.TripID, o.TravelerID, o.Origin, o.Dest, o.OutDate, o.RetDate, o.Kind, o.Program,
-			o.PriceUSD, o.Miles, o.TaxesUSD, o.Airline, o.Stops, o.BasicEconomy, o.PriceLevel, o.TypicalLow, o.TypicalHi, fmtTime(o.SeenAt), o.LinkParams); err != nil {
+			o.PriceUSD, o.Miles, o.TaxesUSD, o.Airline, o.Stops, o.BasicEconomy, o.DepartTime, o.ArriveTime, o.ArriveOn, o.PriceLevel, o.TypicalLow, o.TypicalHi, fmtTime(o.SeenAt), o.LinkParams); err != nil {
 			return err
 		}
 	}
@@ -80,7 +80,7 @@ func (d *DB) AddOffers(offers []model.Offer) error {
 // LatestOffers returns the offers from the newest scan that produced any offers for the trip.
 func (d *DB) LatestOffers(tripID string) ([]model.Offer, error) {
 	rows, err := d.conn.Query(`SELECT id, scan_id, trip_id, traveler_id, origin, dest, out_date, ret_date, kind, program,
-		price_usd, miles, taxes_usd, airline, stops, basic_economy, price_level, typical_low, typical_high, seen_at, link_params
+		price_usd, miles, taxes_usd, airline, stops, basic_economy, depart_time, arrive_time, arrive_on, price_level, typical_low, typical_high, seen_at, link_params
 		FROM offers WHERE trip_id = ? AND scan_id = (SELECT MAX(scan_id) FROM offers WHERE trip_id = ?)`, tripID, tripID)
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (d *DB) LatestOffers(tripID string) ([]model.Offer, error) {
 		var o model.Offer
 		var seen string
 		if err := rows.Scan(&o.ID, &o.ScanID, &o.TripID, &o.TravelerID, &o.Origin, &o.Dest, &o.OutDate, &o.RetDate, &o.Kind, &o.Program,
-			&o.PriceUSD, &o.Miles, &o.TaxesUSD, &o.Airline, &o.Stops, &o.BasicEconomy, &o.PriceLevel, &o.TypicalLow, &o.TypicalHi, &seen, &o.LinkParams); err != nil {
+			&o.PriceUSD, &o.Miles, &o.TaxesUSD, &o.Airline, &o.Stops, &o.BasicEconomy, &o.DepartTime, &o.ArriveTime, &o.ArriveOn, &o.PriceLevel, &o.TypicalLow, &o.TypicalHi, &seen, &o.LinkParams); err != nil {
 			return nil, err
 		}
 		o.SeenAt = parseTime(seen)
