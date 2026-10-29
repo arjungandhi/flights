@@ -15,6 +15,7 @@ import (
 	"github.com/arjungandhi/flights/pkg/db"
 	"github.com/arjungandhi/flights/pkg/demo"
 	"github.com/arjungandhi/flights/pkg/scan"
+	"github.com/arjungandhi/flights/pkg/source/google"
 	"github.com/arjungandhi/flights/pkg/web"
 )
 
@@ -42,7 +43,7 @@ func main() {
 		}
 	}
 
-	runner := &scan.Runner{DB: d}
+	runner := &scan.Runner{DB: d, Cash: google.New()}
 	if *notify != "" {
 		runner.Notify = scan.ExecNotifier{Command: *notify}
 	} else {

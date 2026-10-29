@@ -54,8 +54,6 @@ func (d *DB) Close() error { return d.conn.Close() }
 // Settings is the typed view of the settings table.
 type Settings struct {
 	SeatsAeroKey      string
-	SerpAPIKey        string
-	CashSource        string // google | serpapi
 	CPP               map[string]float64
 	SWRate            float64 // dollars per Southwest point
 	AmexRebateAirline string
@@ -66,7 +64,6 @@ type Settings struct {
 
 func DefaultSettings() Settings {
 	s := Settings{
-		CashSource:    "google",
 		CPP:           map[string]float64{},
 		SWRate:        0.014,
 		AmexRebatePct: 35,
@@ -100,10 +97,6 @@ func (d *DB) Settings() (Settings, error) {
 		switch k {
 		case "seatsaero_key":
 			s.SeatsAeroKey = v
-		case "serpapi_key":
-			s.SerpAPIKey = v
-		case "cash_source":
-			s.CashSource = v
 		case "sw_rate":
 			s.SWRate, _ = strconv.ParseFloat(v, 64)
 		case "amex_rebate_airline":
@@ -126,8 +119,6 @@ func (d *DB) Settings() (Settings, error) {
 func (d *DB) SaveSettings(s Settings) error {
 	kv := map[string]string{
 		"seatsaero_key":       s.SeatsAeroKey,
-		"serpapi_key":         s.SerpAPIKey,
-		"cash_source":         s.CashSource,
 		"sw_rate":             strconv.FormatFloat(s.SWRate, 'f', -1, 64),
 		"amex_rebate_airline": s.AmexRebateAirline,
 		"amex_rebate_pct":     strconv.FormatFloat(s.AmexRebatePct, 'f', -1, 64),

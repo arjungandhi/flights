@@ -1,51 +1,53 @@
 // Package scan runs one pass over active trips and schedules passes on a timer.
-// The per-mode search algorithms (design_doc.md "Scan Algorithm") plug in here once
-// a CashSource/AwardSource exists; with none registered every trip records a scan error
-// so the Settings page shows exactly why nothing is being found.
+// See design_doc.md "Scan Algorithm" and "Alert Rules".
 package scan
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/arjungandhi/flights/pkg/db"
+	"github.com/arjungandhi/flights/pkg/geo"
 	"github.com/arjungandhi/flights/pkg/model"
+	"github.com/arjungandhi/flights/pkg/pricing"
 	"github.com/arjungandhi/flights/pkg/source"
 )
 
-var ErrNoSources = errors.New("no cash or award source configured")
+var ErrNoSources = errors.New("no cash source configured")
+
+// Page budgets per trip per scan. Each Google page is ~2-3 MB, so these bound bandwidth.
+const (
+	coarseFixed    = 25
+	coarseFlexible = 16
+	coarseExplore  = 3
+	refineTop      = 3
+	refineDays     = 2
+	refineDests    = 5
+	refinePairs    = 6
+	maxPagesTrip   = 160
+	maxFailures    = 5
+	// Flexible/explore trips are page-hungry; they rescan once a day unless forced.
+	slowRescan = 20 * time.Hour
+)
 
 type Runner struct {
 	DB     *db.DB
-	Cash   source.CashSource  // nil until a source is configured
-	Award  source.AwardSource // nil until a source is configured
+	Cash   source.CashSource
+	Award  source.AwardSource
 	Notify Notifier
 
 	mu      sync.Mutex
 	running bool
 }
 
-// Message is one alert in `messages send` stdin format.
-type Message struct {
-	RoomID string `json:"room_id"`
-	Text   string `json:"text"`
-}
-
-type Notifier interface {
-	Send(msgs []Message) error
-}
-
-// Run scans every active trip (or just tripID when non-empty). Returns ErrNoSources
-// after recording one scan row per trip when nothing is configured.
-func (r *Runner) Run(ctx context.Context, tripID string) error {
+// Run scans every active trip, or just tripID when non-empty. force bypasses the daily
+// throttle for flexible/explore trips (the "Scan now" button).
+func (r *Runner) Run(ctx context.Context, tripID string, force bool) error {
 	r.mu.Lock()
 	if r.running {
 		r.mu.Unlock()
@@ -59,17 +61,29 @@ func (r *Runner) Run(ctx context.Context, tripID string) error {
 	if err != nil {
 		return err
 	}
+	last, err := r.DB.LastScan()
+	if err != nil {
+		return err
+	}
 	var errs []string
 	for _, t := range trips {
 		if t.Status != model.StatusActive || (tripID != "" && t.ID != tripID) {
 			continue
 		}
+		if !force && t.Mode != model.ModeFixed {
+			if ls, ok := last[t.ID]; ok && ls.Error == "" && time.Since(ls.StartedAt) < slowRescan {
+				continue
+			}
+		}
 		if err := r.scanTrip(ctx, t); err != nil {
+			if errors.Is(err, ErrNoSources) {
+				return err
+			}
 			errs = append(errs, t.ID+": "+err.Error())
 		}
-	}
-	if r.Cash == nil && r.Award == nil {
-		return ErrNoSources
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("%d trip(s) failed: %s", len(errs), strings.Join(errs, "; "))
@@ -79,32 +93,230 @@ func (r *Runner) Run(ctx context.Context, tripID string) error {
 
 func (r *Runner) scanTrip(ctx context.Context, t model.Trip) error {
 	s := model.Scan{TripID: t.ID, StartedAt: time.Now()}
-	switch {
-	case r.Cash == nil && r.Award == nil:
-		s.Source, s.Error = "none", ErrNoSources.Error()
-	default:
-		s.Source = sourceNames(r)
-		s.Error = "scan algorithm not implemented for mode " + string(t.Mode)
+	if r.Cash == nil {
+		s.Source, s.Error, s.FinishedAt = "none", ErrNoSources.Error(), time.Now()
+		r.DB.AddScan(s)
+		return ErrNoSources
 	}
-	s.FinishedAt = time.Now()
-	if _, err := r.DB.AddScan(s); err != nil {
+	s.Source = r.Cash.Name()
+	settings, err := r.DB.Settings()
+	if err != nil {
 		return err
 	}
-	if s.Error != "" {
-		return errors.New(s.Error)
+	offers, calls, perr := r.price(ctx, t, settings)
+	s.CallsUsed, s.FinishedAt = calls, time.Now()
+	if perr != nil {
+		s.Error = perr.Error()
+	}
+	scanID, err := r.DB.AddScan(s)
+	if err != nil {
+		return err
+	}
+	if len(offers) > 0 {
+		for i := range offers {
+			offers[i].ScanID = scanID
+		}
+		if err := r.DB.AddOffers(offers); err != nil {
+			return err
+		}
+		if err := r.recordHistory(offers, s.StartedAt); err != nil {
+			return err
+		}
+	}
+	if perr != nil {
+		return perr
+	}
+	return r.alert(t, pricing.Candidates(t, offers, settings), settings)
+}
+
+// recordHistory keeps one lowest-cash price per route per day; the explore baseline.
+func (r *Runner) recordHistory(offers []model.Offer, day time.Time) error {
+	type route struct{ o, d string }
+	low := map[route]float64{}
+	for _, o := range offers {
+		if o.Kind != model.KindCash {
+			continue
+		}
+		k := route{o.Origin, o.Dest}
+		if v, ok := low[k]; !ok || o.PriceUSD < v {
+			low[k] = o.PriceUSD
+		}
+	}
+	for k, v := range low {
+		if err := r.DB.RecordPrice(k.o, k.d, day, v); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func sourceNames(r *Runner) string {
-	var names []string
-	if r.Cash != nil {
-		names = append(names, r.Cash.Name())
+// priceRun carries the per-scan page budget and the set of (traveler, home, dest, pair) done.
+type priceRun struct {
+	r        *Runner
+	t        model.Trip
+	settings db.Settings
+	calls    int
+	failures int
+	offers   []model.Offer
+	done     map[string]bool
+	lastErr  error
+}
+
+func (r *Runner) price(ctx context.Context, t model.Trip, settings db.Settings) ([]model.Offer, int, error) {
+	pairs := Pairs(t, time.Now())
+	if len(pairs) == 0 {
+		return nil, 0, errors.New("no searchable dates (window in the past?)")
 	}
-	if r.Award != nil {
-		names = append(names, r.Award.Name())
+	travelers := t.Unbooked()
+	if len(travelers) == 0 {
+		return nil, 0, errors.New("everyone is booked")
 	}
-	return strings.Join(names, "+")
+	var dests []string
+	switch t.Mode {
+	case model.ModeExplore:
+		var homes []string
+		for _, tr := range travelers {
+			homes = append(homes, tr.Homes...)
+		}
+		for _, d := range geo.Destinations(t.Region, homes) {
+			dests = append(dests, d.Code)
+		}
+	default:
+		dests = []string{t.Dest}
+	}
+	run := &priceRun{r: r, t: t, settings: settings, done: map[string]bool{}}
+
+	coarse := coarseFixed
+	switch t.Mode {
+	case model.ModeFlexible:
+		coarse = coarseFlexible
+	case model.ModeExplore:
+		coarse = coarseExplore
+	}
+	sample := Sample(pairs, coarse)
+	for _, d := range dests {
+		if err := run.priceSet(ctx, travelers, d, sample); err != nil {
+			return run.offers, run.calls, err
+		}
+	}
+
+	// Refine around what looks cheapest for the whole group.
+	cands := pricing.Candidates(t, run.offers, settings)
+	switch t.Mode {
+	case model.ModeExplore:
+		seen := map[string]bool{}
+		for _, c := range cands {
+			if seen[c.Dest] {
+				continue
+			}
+			seen[c.Dest] = true
+			if len(seen) > refineDests {
+				break
+			}
+			skip := map[Pair]bool{}
+			for _, p := range sample {
+				skip[p] = true
+			}
+			var more []Pair
+			for _, p := range Sample(pairs, refinePairs+coarse) {
+				if !skip[p] {
+					more = append(more, p)
+				}
+			}
+			if err := run.priceSet(ctx, travelers, c.Dest, more); err != nil {
+				return run.offers, run.calls, err
+			}
+		}
+	default:
+		skip := map[Pair]bool{}
+		for _, p := range sample {
+			skip[p] = true
+		}
+		for i, c := range cands {
+			if i >= refineTop {
+				break
+			}
+			more := Neighbors(pairs, Pair{c.OutDate, c.RetDate}, refineDays, skip)
+			for _, p := range more {
+				skip[p] = true
+			}
+			if err := run.priceSet(ctx, travelers, t.Dest, more); err != nil {
+				return run.offers, run.calls, err
+			}
+		}
+	}
+	if run.lastErr != nil && len(run.offers) == 0 {
+		return nil, run.calls, run.lastErr
+	}
+	return run.offers, run.calls, nil
+}
+
+// priceSet fetches every (traveler, home, pair) for one destination.
+func (p *priceRun) priceSet(ctx context.Context, travelers []model.TripTraveler, dest string, pairs []Pair) error {
+	for _, pair := range pairs {
+		for _, tr := range travelers {
+			for _, home := range tr.Homes {
+				if home == dest {
+					continue
+				}
+				key := fmt.Sprintf("%d|%s|%s|%s|%s", tr.ID, home, dest, pair.Out, pair.Ret)
+				if p.done[key] {
+					continue
+				}
+				if p.calls >= maxPagesTrip {
+					return fmt.Errorf("page budget (%d) reached; results are partial", maxPagesTrip)
+				}
+				p.done[key] = true
+				q := source.Query{Origin: home, Dest: dest, Out: pair.Out, Ret: pair.Ret, Cabin: p.t.Cabin, MaxStops: p.t.MaxStops, Airlines: p.t.Airlines}
+				res, err := p.r.Cash.Search(ctx, q)
+				p.calls++
+				if err != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					if errors.Is(err, source.ErrBlocked) {
+						return err
+					}
+					p.failures++
+					p.lastErr = err
+					log.Printf("scan %s: %s %s→%s %s/%s: %v", p.t.ID, tr.Name, home, dest, pair.Out, pair.Ret, err)
+					if p.failures >= maxFailures {
+						return fmt.Errorf("%d consecutive failures, last: %w", p.failures, err)
+					}
+					continue
+				}
+				p.failures = 0
+				p.add(tr, q, res)
+			}
+		}
+	}
+	return nil
+}
+
+// add keeps the cheapest itinerary and, when different, the cheapest nonstop.
+func (p *priceRun) add(tr model.TripTraveler, q source.Query, res source.Result) {
+	if len(res.Itineraries) == 0 {
+		return
+	}
+	now := time.Now()
+	mk := func(it source.Itinerary) model.Offer {
+		return model.Offer{
+			TripID: p.t.ID, TravelerID: tr.ID, Origin: q.Origin, Dest: q.Dest, OutDate: q.Out, RetDate: q.Ret,
+			Kind: model.KindCash, PriceUSD: it.PriceUSD, Airline: it.Airline, Stops: it.Stops,
+			PriceLevel: res.Insight.Level, TypicalLow: res.Insight.TypicalLow, TypicalHi: res.Insight.TypicalHi,
+			SeenAt: now, LinkParams: it.Link,
+		}
+	}
+	cheapest := res.Itineraries[0]
+	p.offers = append(p.offers, mk(cheapest))
+	if cheapest.Stops > 0 {
+		for _, it := range res.Itineraries[1:] {
+			if it.Stops == 0 {
+				p.offers = append(p.offers, mk(it))
+				break
+			}
+		}
+	}
 }
 
 // Loop runs a scan every interval until ctx is done. The first run is immediate.
@@ -112,7 +324,7 @@ func (r *Runner) Loop(ctx context.Context, every time.Duration) {
 	tick := time.NewTicker(every)
 	defer tick.Stop()
 	for {
-		if err := r.Run(ctx, ""); err != nil {
+		if err := r.Run(ctx, "", false); err != nil {
 			log.Printf("scan: %v", err)
 		}
 		select {
@@ -121,45 +333,4 @@ func (r *Runner) Loop(ctx context.Context, every time.Duration) {
 		case <-tick.C:
 		}
 	}
-}
-
-// ExecNotifier pipes JSON lines to a shell command's stdin, e.g. `messages send`.
-type ExecNotifier struct {
-	Command string
-}
-
-func (n ExecNotifier) Send(msgs []Message) error {
-	if n.Command == "" || len(msgs) == 0 {
-		return nil
-	}
-	cmd := exec.Command("sh", "-c", n.Command)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return err
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	enc := json.NewEncoder(stdin)
-	for _, m := range msgs {
-		if err := enc.Encode(m); err != nil {
-			stdin.Close()
-			return err
-		}
-	}
-	stdin.Close()
-	return cmd.Wait()
-}
-
-// WriterNotifier writes JSON lines to w; used when no --notify command is set.
-type WriterNotifier struct{ W io.Writer }
-
-func (n WriterNotifier) Send(msgs []Message) error {
-	enc := json.NewEncoder(n.W)
-	for _, m := range msgs {
-		if err := enc.Encode(m); err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -33,7 +33,6 @@ CREATE TABLE IF NOT EXISTS trips (
     target_usd   REAL NOT NULL DEFAULT 0,
     max_stops    INTEGER NOT NULL DEFAULT -1,
     airlines     TEXT NOT NULL DEFAULT '',
-    no_basic     INTEGER NOT NULL DEFAULT 0,
     status       TEXT NOT NULL DEFAULT 'active',
     created_at   TEXT NOT NULL
 );
@@ -73,6 +72,9 @@ CREATE TABLE IF NOT EXISTS offers (
     airline       TEXT NOT NULL DEFAULT '',
     stops         INTEGER NOT NULL DEFAULT 0,
     basic_economy INTEGER NOT NULL DEFAULT 0,
+    price_level   INTEGER NOT NULL DEFAULT 0,
+    typical_low   REAL NOT NULL DEFAULT 0,
+    typical_high  REAL NOT NULL DEFAULT 0,
     seen_at       TEXT NOT NULL,
     link_params   TEXT NOT NULL DEFAULT ''
 );

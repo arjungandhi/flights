@@ -9,13 +9,13 @@ import (
 )
 
 const tripCols = `id, mode, dest, region, depart, ret, slack, window_start, window_end, nights_min, nights_max,
-	weekends, one_way, cabin, target_usd, max_stops, airlines, no_basic, status, created_at`
+	weekends, one_way, cabin, target_usd, max_stops, airlines, status, created_at`
 
 func scanTrip(sc interface{ Scan(...any) error }) (model.Trip, error) {
 	var t model.Trip
 	var airlines, created string
 	err := sc.Scan(&t.ID, &t.Mode, &t.Dest, &t.Region, &t.Depart, &t.Return, &t.Slack, &t.WindowStart, &t.WindowEnd,
-		&t.NightsMin, &t.NightsMax, &t.Weekends, &t.OneWay, &t.Cabin, &t.TargetUSD, &t.MaxStops, &airlines, &t.NoBasic,
+		&t.NightsMin, &t.NightsMax, &t.Weekends, &t.OneWay, &t.Cabin, &t.TargetUSD, &t.MaxStops, &airlines,
 		&t.Status, &created)
 	if err != nil {
 		return t, scanOne(err)
@@ -97,9 +97,9 @@ func (d *DB) AddTrip(t model.Trip, travelerIDs []int64) error {
 		return err
 	}
 	defer tx.Rollback()
-	_, err = tx.Exec(`INSERT INTO trips(`+tripCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err = tx.Exec(`INSERT INTO trips(`+tripCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		t.ID, t.Mode, t.Dest, t.Region, t.Depart, t.Return, t.Slack, t.WindowStart, t.WindowEnd, t.NightsMin, t.NightsMax,
-		t.Weekends, t.OneWay, t.Cabin, t.TargetUSD, t.MaxStops, joinList(t.Airlines), t.NoBasic, t.Status, fmtTime(t.CreatedAt))
+		t.Weekends, t.OneWay, t.Cabin, t.TargetUSD, t.MaxStops, joinList(t.Airlines), t.Status, fmtTime(t.CreatedAt))
 	if err != nil {
 		return err
 	}

@@ -5,9 +5,8 @@
 <form method="post" action="/settings">
   <h3>Sources</h3>
   <div class="grid">
-    <label>seats.aero Pro API key <input name="seatsaero_key" value="{{$s.SeatsAeroKey}}" placeholder="pro_…" autocomplete="off"><span class="muted small">Awards. Optional; skipped when empty.</span></label>
-    <label>Cash source <select name="cash_source"><option value="google" {{if eq $s.CashSource "google"}}selected{{end}}>Google Flights (scrape, free)</option><option value="serpapi" {{if eq $s.CashSource "serpapi"}}selected{{end}}>SerpApi (paid, stable)</option></select></label>
-    <label>SerpApi key <input name="serpapi_key" value="{{$s.SerpAPIKey}}" autocomplete="off"><span class="muted small">Only used when cash source is SerpApi.</span></label>
+    <label>Cash fares <input value="Google Flights search page (free, no key)" disabled><span class="muted small">~2–3 MB per route/date; paced at one page every ~3 s.</span></label>
+    <label>seats.aero Pro API key <input name="seatsaero_key" value="{{$s.SeatsAeroKey}}" placeholder="pro_…" autocomplete="off"><span class="muted small">Awards. Not wired yet; stored for when it is.</span></label>
   </div>
 
   <h3>Points valuation <span class="muted small">cents per point</span></h3>

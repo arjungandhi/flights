@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/arjungandhi/flights/pkg/model"
+	"github.com/arjungandhi/flights/pkg/source/google"
 )
 
 // bookLink returns where a human goes to book this offer. Google Flights and Southwest/United/Aeroplan
@@ -13,6 +14,8 @@ import (
 func bookLink(o model.Offer) string {
 	rt := o.RetDate != ""
 	switch {
+	case o.Kind == model.KindCash && o.LinkParams != "":
+		return google.LinkURL(o.LinkParams)
 	case o.Kind == model.KindCash:
 		q := fmt.Sprintf("Flights from %s to %s on %s", o.Origin, o.Dest, o.OutDate)
 		if rt {

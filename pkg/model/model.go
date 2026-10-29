@@ -109,7 +109,6 @@ type Trip struct {
 	TargetUSD   float64 // per person; 0 = none
 	MaxStops    int     // -1 = any
 	Airlines    []string
-	NoBasic     bool
 	Status      Status
 	CreatedAt   time.Time
 	Travelers   []TripTraveler
@@ -185,8 +184,11 @@ type Offer struct {
 	Airline      string
 	Stops        int
 	BasicEconomy bool
+	PriceLevel   int     // provider insight: 1 low, 2 typical, 3 high, 0 unknown
+	TypicalLow   float64 // provider's typical price range for this date pair
+	TypicalHi    float64
 	SeenAt       time.Time
-	LinkParams   string // source-specific JSON used to build booking links
+	LinkParams   string // source-specific params used to build booking links
 }
 
 type Scan struct {

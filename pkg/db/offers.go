@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/arjungandhi/flights/pkg/model"
@@ -62,14 +63,14 @@ func (d *DB) AddOffers(offers []model.Offer) error {
 	}
 	defer tx.Rollback()
 	stmt, err := tx.Prepare(`INSERT INTO offers(scan_id, trip_id, traveler_id, origin, dest, out_date, ret_date, kind, program,
-		price_usd, miles, taxes_usd, airline, stops, basic_economy, seen_at, link_params) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		price_usd, miles, taxes_usd, airline, stops, basic_economy, price_level, typical_low, typical_high, seen_at, link_params) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, o := range offers {
 		if _, err := stmt.Exec(o.ScanID, o.TripID, o.TravelerID, o.Origin, o.Dest, o.OutDate, o.RetDate, o.Kind, o.Program,
-			o.PriceUSD, o.Miles, o.TaxesUSD, o.Airline, o.Stops, o.BasicEconomy, fmtTime(o.SeenAt), o.LinkParams); err != nil {
+			o.PriceUSD, o.Miles, o.TaxesUSD, o.Airline, o.Stops, o.BasicEconomy, o.PriceLevel, o.TypicalLow, o.TypicalHi, fmtTime(o.SeenAt), o.LinkParams); err != nil {
 			return err
 		}
 	}
@@ -79,7 +80,7 @@ func (d *DB) AddOffers(offers []model.Offer) error {
 // LatestOffers returns the offers from the newest scan that produced any offers for the trip.
 func (d *DB) LatestOffers(tripID string) ([]model.Offer, error) {
 	rows, err := d.conn.Query(`SELECT id, scan_id, trip_id, traveler_id, origin, dest, out_date, ret_date, kind, program,
-		price_usd, miles, taxes_usd, airline, stops, basic_economy, seen_at, link_params
+		price_usd, miles, taxes_usd, airline, stops, basic_economy, price_level, typical_low, typical_high, seen_at, link_params
 		FROM offers WHERE trip_id = ? AND scan_id = (SELECT MAX(scan_id) FROM offers WHERE trip_id = ?)`, tripID, tripID)
 	if err != nil {
 		return nil, err
@@ -90,7 +91,7 @@ func (d *DB) LatestOffers(tripID string) ([]model.Offer, error) {
 		var o model.Offer
 		var seen string
 		if err := rows.Scan(&o.ID, &o.ScanID, &o.TripID, &o.TravelerID, &o.Origin, &o.Dest, &o.OutDate, &o.RetDate, &o.Kind, &o.Program,
-			&o.PriceUSD, &o.Miles, &o.TaxesUSD, &o.Airline, &o.Stops, &o.BasicEconomy, &seen, &o.LinkParams); err != nil {
+			&o.PriceUSD, &o.Miles, &o.TaxesUSD, &o.Airline, &o.Stops, &o.BasicEconomy, &o.PriceLevel, &o.TypicalLow, &o.TypicalHi, &seen, &o.LinkParams); err != nil {
 			return nil, err
 		}
 		o.SeenAt = parseTime(seen)
@@ -165,4 +166,30 @@ func (d *DB) Alerts(tripID string) ([]model.Alert, error) {
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+// LastAlert returns the most recent alert for a trip on exact dates, any program.
+func (d *DB) LastAlert(tripID, dest, out, ret string) (model.Alert, bool, error) {
+	var a model.Alert
+	var sent string
+	err := d.conn.QueryRow(`SELECT id, trip_id, dest, out_date, ret_date, program, effective_usd, sent_at FROM alerts
+		WHERE trip_id = ? AND dest = ? AND out_date = ? AND ret_date = ? ORDER BY sent_at DESC LIMIT 1`, tripID, dest, out, ret).
+		Scan(&a.ID, &a.TripID, &a.Dest, &a.OutDate, &a.RetDate, &a.Program, &a.EffectiveUSD, &sent)
+	if err != nil {
+		if scanOne(err) == ErrNotFound {
+			return a, false, nil
+		}
+		return a, false, err
+	}
+	a.SentAt = parseTime(sent)
+	return a, true, nil
+}
+
+// MinAlerted is the lowest per-person effective price ever alerted for a trip; ok=false when none.
+func (d *DB) MinAlerted(tripID string) (float64, bool, error) {
+	var v sql.NullFloat64
+	if err := d.conn.QueryRow(`SELECT MIN(effective_usd) FROM alerts WHERE trip_id = ?`, tripID).Scan(&v); err != nil {
+		return 0, false, err
+	}
+	return v.Float64, v.Valid, nil
 }

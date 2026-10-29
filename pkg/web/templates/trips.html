@@ -101,7 +101,6 @@
   <label>Airlines <input name="airlines" placeholder="DL, UA, WN (blank = any)" value="{{$f.airlines}}"></label>
 </div>
 <div class="row">
-  <label class="check"><input type="checkbox" name="no_basic" {{if eq $f.no_basic "on"}}checked{{end}}> No basic economy</label>
   <label class="check"><input type="checkbox" name="one_way" {{if eq $f.one_way "on"}}checked{{end}}> One-way</label>
 </div>
 {{end}}

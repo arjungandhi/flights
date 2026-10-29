@@ -1,4 +1,4 @@
-// Package demo seeds an empty database with sample travelers, trips and offers so the UI
+// Package demo seeds an empty database with snehaple travelers, trips and offers so the UI
 // can be exercised before any real source is wired up. Scan rows are tagged source "demo".
 package demo
 
@@ -19,11 +19,11 @@ func Seed(d *db.DB) error {
 		return nil // already populated
 	}
 	now := time.Now()
-	arjun, err := d.AddTraveler("Arjun", []string{"SFO", "OAK"})
+	arjun, err := d.AddTraveler("Arjun", []string{"DEN"})
 	if err != nil {
 		return err
 	}
-	sam, err := d.AddTraveler("Sam", []string{"AUS"})
+	sneha, err := d.AddTraveler("Sneha", []string{"LGA", "JFK"})
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func Seed(d *db.DB) error {
 		miles   int64
 	}{
 		{arjun, "amex", 250000}, {arjun, "delta", 82000}, {arjun, "united", 31000}, {arjun, "southwest", 44000},
-		{sam, "delta", 12000}, {sam, "southwest", 90000},
+		{sneha, "delta", 12000}, {sneha, "southwest", 90000},
 	} {
 		if err := d.SetBalance(b.id, b.program, b.miles, now.Add(-72*time.Hour)); err != nil {
 			return err
@@ -48,7 +48,7 @@ func Seed(d *db.DB) error {
 	if fixed.ID, err = d.Slug(fixed); err != nil {
 		return err
 	}
-	if err := d.AddTrip(fixed, []int64{arjun, sam}); err != nil {
+	if err := d.AddTrip(fixed, []int64{arjun, sneha}); err != nil {
 		return err
 	}
 
@@ -58,7 +58,7 @@ func Seed(d *db.DB) error {
 	if flex.ID, err = d.Slug(flex); err != nil {
 		return err
 	}
-	if err := d.AddTrip(flex, []int64{arjun, sam}); err != nil {
+	if err := d.AddTrip(flex, []int64{arjun, sneha}); err != nil {
 		return err
 	}
 
@@ -67,7 +67,7 @@ func Seed(d *db.DB) error {
 	if explore.ID, err = d.Slug(explore); err != nil {
 		return err
 	}
-	if err := d.AddTrip(explore, []int64{arjun, sam}); err != nil {
+	if err := d.AddTrip(explore, []int64{arjun, sneha}); err != nil {
 		return err
 	}
 
@@ -79,14 +79,14 @@ func Seed(d *db.DB) error {
 			return err
 		}
 		offers := []model.Offer{
-			{TravelerID: arjun, Origin: "SFO", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base, Airline: "UA", Stops: 0},
-			{TravelerID: arjun, Origin: "SFO", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base - 61, Airline: "ZA", Stops: 0, BasicEconomy: true},
-			{TravelerID: arjun, Origin: "SFO", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindAward, Program: "delta", Miles: 70000, TaxesUSD: 62, Airline: "DL", Stops: 0},
-			{TravelerID: arjun, Origin: "SFO", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindAward, Program: "virginatlantic", Miles: 60000, TaxesUSD: 45, Airline: "DL", Stops: 0},
-			{TravelerID: sam, Origin: "AUS", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base + 190, Airline: "AA", Stops: 1},
-			{TravelerID: sam, Origin: "AUS", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindAward, Program: "united", Miles: 88000, TaxesUSD: 40, Airline: "UA", Stops: 1},
-			{TravelerID: arjun, Origin: "SFO", Dest: "NRT", OutDate: day(dep.AddDate(0, 0, 1)), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base - 40, Airline: "UA", Stops: 0},
-			{TravelerID: sam, Origin: "AUS", Dest: "NRT", OutDate: day(dep.AddDate(0, 0, 1)), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base + 240, Airline: "DL", Stops: 1},
+			{TravelerID: arjun, Origin: "DEN", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base, Airline: "UA", Stops: 0},
+			{TravelerID: arjun, Origin: "DEN", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base - 61, Airline: "ZA", Stops: 0, BasicEconomy: true},
+			{TravelerID: arjun, Origin: "DEN", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindAward, Program: "delta", Miles: 70000, TaxesUSD: 62, Airline: "DL", Stops: 0},
+			{TravelerID: arjun, Origin: "DEN", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindAward, Program: "virginatlantic", Miles: 60000, TaxesUSD: 45, Airline: "DL", Stops: 0},
+			{TravelerID: sneha, Origin: "LGA", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base + 190, Airline: "AA", Stops: 1},
+			{TravelerID: sneha, Origin: "LGA", Dest: "NRT", OutDate: day(dep), RetDate: day(ret), Kind: model.KindAward, Program: "united", Miles: 88000, TaxesUSD: 40, Airline: "UA", Stops: 1},
+			{TravelerID: arjun, Origin: "DEN", Dest: "NRT", OutDate: day(dep.AddDate(0, 0, 1)), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base - 40, Airline: "UA", Stops: 0},
+			{TravelerID: sneha, Origin: "LGA", Dest: "NRT", OutDate: day(dep.AddDate(0, 0, 1)), RetDate: day(ret), Kind: model.KindCash, PriceUSD: base + 240, Airline: "DL", Stops: 1},
 		}
 		for j := range offers {
 			offers[j].ScanID, offers[j].TripID, offers[j].SeenAt = scanID, fixed.ID, at
@@ -94,10 +94,10 @@ func Seed(d *db.DB) error {
 		if err := d.AddOffers(offers); err != nil {
 			return err
 		}
-		if err := d.RecordPrice("SFO", "NRT", at, base-61); err != nil {
+		if err := d.RecordPrice("DEN", "NRT", at, base-61); err != nil {
 			return err
 		}
-		if err := d.RecordPrice("AUS", "NRT", at, base+190); err != nil {
+		if err := d.RecordPrice("LGA", "NRT", at, base+190); err != nil {
 			return err
 		}
 	}
@@ -115,10 +115,10 @@ func Seed(d *db.DB) error {
 	for i, pair := range [][2]int{{3, 11}, {17, 26}, {45, 53}} {
 		out, back := day(ws.AddDate(0, 0, pair[0])), day(ws.AddDate(0, 0, pair[1]))
 		offers = append(offers,
-			model.Offer{TravelerID: arjun, Origin: "SFO", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: 540 + float64(i*45), Airline: "TP", Stops: 0},
-			model.Offer{TravelerID: arjun, Origin: "SFO", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindAward, Program: "flyingblue", Miles: 55000, TaxesUSD: 180, Airline: "AF", Stops: 1},
-			model.Offer{TravelerID: sam, Origin: "AUS", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: 610 + float64(i*30), Airline: "UA", Stops: 1},
-			model.Offer{TravelerID: sam, Origin: "AUS", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindAward, Program: "aeroplan", Miles: 70000, TaxesUSD: 90, Airline: "UA", Stops: 1},
+			model.Offer{TravelerID: arjun, Origin: "DEN", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: 540 + float64(i*45), Airline: "TP", Stops: 0},
+			model.Offer{TravelerID: arjun, Origin: "DEN", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindAward, Program: "flyingblue", Miles: 55000, TaxesUSD: 180, Airline: "AF", Stops: 1},
+			model.Offer{TravelerID: sneha, Origin: "LGA", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: 610 + float64(i*30), Airline: "UA", Stops: 1},
+			model.Offer{TravelerID: sneha, Origin: "LGA", Dest: "LIS", OutDate: out, RetDate: back, Kind: model.KindAward, Program: "aeroplan", Miles: 70000, TaxesUSD: 90, Airline: "UA", Stops: 1},
 		)
 	}
 	for j := range offers {
@@ -145,11 +145,11 @@ func Seed(d *db.DB) error {
 		for k, pair := range [][2]int{{4, 9}, {18, 23}} {
 			out, back := day(ws.AddDate(0, 0, pair[0])), day(ws.AddDate(0, 0, pair[1]))
 			offers = append(offers,
-				model.Offer{TravelerID: arjun, Origin: "SFO", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: dst.sfo + float64(k*35), Airline: "AM", Stops: 0},
-				model.Offer{TravelerID: sam, Origin: "AUS", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: dst.aus + float64(k*20), Airline: "AA", Stops: 1},
+				model.Offer{TravelerID: arjun, Origin: "DEN", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: dst.sfo + float64(k*35), Airline: "AM", Stops: 0},
+				model.Offer{TravelerID: sneha, Origin: "LGA", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindCash, PriceUSD: dst.aus + float64(k*20), Airline: "AA", Stops: 1},
 			)
 			if dst.swPoints > 0 {
-				offers = append(offers, model.Offer{TravelerID: sam, Origin: "AUS", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindAward, Program: "southwest", Miles: dst.swPoints, TaxesUSD: 11.2, Airline: dst.swAirline, Stops: 0})
+				offers = append(offers, model.Offer{TravelerID: sneha, Origin: "LGA", Dest: dst.code, OutDate: out, RetDate: back, Kind: model.KindAward, Program: "southwest", Miles: dst.swPoints, TaxesUSD: 11.2, Airline: dst.swAirline, Stops: 0})
 			}
 		}
 	}
@@ -161,11 +161,11 @@ func Seed(d *db.DB) error {
 	}
 	for i := range 30 {
 		d0 := now.Add(-time.Duration(i) * 24 * time.Hour)
-		if err := d.RecordPrice("SFO", "MEX", d0, 330+float64((i*37)%90)); err != nil {
+		if err := d.RecordPrice("DEN", "MEX", d0, 330+float64((i*37)%90)); err != nil {
 			return err
 		}
 	}
-	fmt.Println("demo: seeded travelers Arjun/Sam and trips", fixed.ID, flex.ID, explore.ID)
+	fmt.Println("demo: seeded travelers Arjun/Sneha and trips", fixed.ID, flex.ID, explore.ID)
 	return nil
 }
 

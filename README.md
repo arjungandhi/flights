@@ -26,9 +26,13 @@ Flags: `--addr`, `--every`, `--notify`, `--dir` (or `$FLIGHTS_DIR`), `--demo`, `
 
 Everything else, including API keys, lives in the UI under Settings.
 
+## How it finds prices
+
+Cash fares come from the public Google Flights search page: one HTTP GET per route and date pair, parsed from the payload the page inlines. Free, no key, includes Southwest, and carries Google's own "typical price" range for the dates. Google gated its JSON APIs in 2026, so this is the only free path; each page is ~2–3 MB and the scanner paces itself at one every ~3 s. Fixed-date trips rescan every cycle; flexible and explore trips sample the date window and rescan daily.
+
 ## Status
 
-Scaffold + UI. Storage, pricing, candidate ranking, alerts history and all pages work; `pkg/source` defines the `CashSource`/`AwardSource` interfaces but no provider is implemented yet, so a real scan records "no cash or award source configured" until one lands. Next: Google Flights cash source, seats.aero award source, the per-mode scan algorithms, alert rules.
+Working: storage, three trip modes, Google Flights cash pricing, candidate ranking across travelers, alert rules, Matrix notify via `messages`, the whole UI. Not yet: award availability (seats.aero), so points are only compared via Amex Travel pay-with-points and Southwest's revenue-based pricing.
 
 ## Install
 

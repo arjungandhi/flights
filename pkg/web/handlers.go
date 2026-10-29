@@ -111,7 +111,6 @@ func parseTripForm(r *http.Request) (model.Trip, []int64, error) {
 		CreatedAt: time.Now(),
 		OneWay:    f.Get("one_way") == "on",
 		Weekends:  f.Get("weekends") == "on",
-		NoBasic:   f.Get("no_basic") == "on",
 		MaxStops:  -1,
 	}
 	if t.Cabin == "" {
@@ -535,11 +534,6 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	f := r.PostForm
 	cur.SeatsAeroKey = strings.TrimSpace(f.Get("seatsaero_key"))
-	cur.SerpAPIKey = strings.TrimSpace(f.Get("serpapi_key"))
-	cur.CashSource = f.Get("cash_source")
-	if cur.CashSource != "google" && cur.CashSource != "serpapi" {
-		cur.CashSource = "google"
-	}
 	cur.AmexRebateAirline = strings.ToUpper(strings.TrimSpace(f.Get("amex_rebate_airline")))
 	cur.NotifyRoom = strings.TrimSpace(f.Get("notify_room"))
 	cur.BaseURL = strings.TrimRight(strings.TrimSpace(f.Get("base_url")), "/")
@@ -573,7 +567,7 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
-	err := s.Runner.Run(ctx, r.FormValue("trip"))
+	err := s.Runner.Run(ctx, r.FormValue("trip"), true)
 	data, derr := s.settingsData()
 	if derr != nil {
 		s.fail(w, derr)
@@ -584,7 +578,7 @@ func (s *Server) scanNow(w http.ResponseWriter, r *http.Request) {
 		p.Error = err.Error()
 	}
 	if errors.Is(err, scan.ErrNoSources) {
-		p.Error = "No sources configured: add a seats.aero key or a cash source in Settings."
+		p.Error = "No cash source configured."
 	}
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

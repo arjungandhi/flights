@@ -2,7 +2,7 @@
 {{$d := .Data}}{{$t := $d.Trip}}{{$s := $d.Settings}}
 <section>
 <h1><code>{{$t.ID}}</code> <span class="tag">{{$t.Mode}}</span> {{if ne $t.Status "active"}}<span class="tag">{{$t.Status}}</span>{{end}}</h1>
-<p>{{$t.Where}} · {{$t.When}} · {{$t.Cabin}}{{if $t.TargetUSD}} · target {{usd $t.TargetUSD}}/person{{end}}{{if ge $t.MaxStops 0}} · ≤{{$t.MaxStops}} stops{{end}}{{if $t.Airlines}} · {{join $t.Airlines ", "}}{{end}}{{if $t.NoBasic}} · no basic economy{{end}}</p>
+<p>{{$t.Where}} · {{$t.When}} · {{$t.Cabin}}{{if $t.TargetUSD}} · target {{usd $t.TargetUSD}}/person{{end}}{{if ge $t.MaxStops 0}} · ≤{{$t.MaxStops}} stops{{end}}{{if $t.Airlines}} · {{join $t.Airlines ", "}}{{end}}</p>
 <p class="muted">Last scan {{ago $d.LastScan.StartedAt}}{{if $d.LastScan.Error}} — <span class="warn">{{$d.LastScan.Error}}</span>{{end}}
   {{if $d.Spark}} · lowest cash per scan {{sparkline $d.Spark}}{{end}}</p>
 
@@ -38,7 +38,7 @@
     {{if .Cash}}
       <div class="{{if not .UsesAward}}chosen{{end}}">
         <a href="{{bookLink .Cash}}" target="_blank">{{usd .Cash.PriceUSD}}</a> cash
-        <span class="muted">{{.Cash.Origin}} · {{.Cash.Airline}}{{if .Cash.Stops}} · {{.Cash.Stops}} stop{{else}} · nonstop{{end}}{{if .Cash.BasicEconomy}} · basic{{end}}</span>
+        <span class="muted">{{.Cash.Origin}} · {{.Cash.Airline}}{{if .Cash.Stops}} · {{.Cash.Stops}} stop{{else}} · nonstop{{end}}{{if .Cash.TypicalLow}} · <span class="{{if eq .Cash.PriceLevel 1}}good{{else if eq .Cash.PriceLevel 3}}warn{{end}}" title="Google's typical range for these dates">typical {{usd .Cash.TypicalLow}}–{{usd .Cash.TypicalHi}}</span>{{end}}</span>
         <div class="muted">or <a href="{{$d.AmexURL}}" target="_blank">{{pts (amexPts .Cash.PriceUSD $s)}} MR</a> via Amex Travel</div>
       </div>
     {{end}}
