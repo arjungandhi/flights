@@ -2,7 +2,7 @@
 <section>
 <h1>Explore</h1>
 <p class="muted">Destinations cheap for everyone at once. One board per explore trip.</p>
-{{if not .Data}}<p class="muted">No explore trips. Add one from the <a href="/">Trips</a> page (Explore tab).</p>{{end}}
+{{if not .Data}}<p class="empty"><span class="logo"></span> <span>No explore trips. Add one from the <a href="/">Trips</a> page (Explore tab).</span></p>{{end}}
 {{range .Data}}
 <h2><a href="/trips/{{.ID}}"><code>{{.ID}}</code></a> · {{.Where}} · {{.When}} <span class="muted">scanned {{ago .LastScan.StartedAt}}</span></h2>
 {{if not .Dests}}<p class="muted">Nothing priced yet.</p>{{end}}

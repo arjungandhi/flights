@@ -1,3 +1,5 @@
+<p align="center"><img src="pkg/web/static/logo.png" width="140" alt="monkey with a wrench"></p>
+
 # flights
 
 Finds cheap flights, cash or points, for a group of people who may live in different cities. You tell it where/when (or just when), it scans on a schedule, and pings you through [`messages`](https://github.com/arjungandhi/messages) when something is worth booking.

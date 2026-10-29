@@ -8,7 +8,10 @@
 * { box-sizing: border-box; }
 body { margin: 0; font: 15px/1.45 system-ui, -apple-system, sans-serif; color: var(--fg); background: var(--bg); }
 header { display: flex; align-items: center; gap: 24px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
-.brand { font-weight: 700; color: var(--fg); text-decoration: none; }
+.brand { font-weight: 700; color: var(--fg); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.logo { display: inline-block; width: 29px; height: 28px; background: var(--fg); mask: url(/static/logo.svg) no-repeat center / contain; -webkit-mask: url(/static/logo.svg) no-repeat center / contain; }
+.empty { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+.empty .logo { width: 50px; height: 48px; opacity: .35; }
 nav a { color: var(--muted); text-decoration: none; margin-right: 16px; }
 nav a.on, nav a:hover { color: var(--fg); }
 main { max-width: 1200px; margin: 0 auto; padding: 24px; }

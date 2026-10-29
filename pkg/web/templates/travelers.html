@@ -2,7 +2,7 @@
 {{$d := .Data}}
 <section>
 <h1>Travelers</h1>
-{{if not $d.Travelers}}<p class="muted">Nobody yet.</p>{{end}}
+{{if not $d.Travelers}}<p class="empty"><span class="logo"></span> Nobody yet.</p>{{end}}
 {{range $d.Travelers}}
 <div class="card">
   <form method="post" action="/travelers/{{.ID}}" class="row">
