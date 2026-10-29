@@ -75,6 +75,9 @@ func TestSampleSpread(t *testing.T) {
 	if s := Sample(pairs[:3], 10); len(s) != 3 {
 		t.Errorf("small input should pass through, got %d", len(s))
 	}
+	if s := Sample(pairs, 1); len(s) != 1 || s[0] != pairs[50] {
+		t.Errorf("n=1 should return the middle pair, got %v", s)
+	}
 }
 
 func TestNeighborsSameLength(t *testing.T) {

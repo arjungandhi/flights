@@ -97,13 +97,13 @@ func Sample(pairs []Pair, n int) []Pair {
 	if len(pairs) <= n {
 		return append([]Pair(nil), pairs...)
 	}
+	if n == 1 {
+		return []Pair{pairs[len(pairs)/2]}
+	}
 	out := make([]Pair, 0, n)
 	seen := map[Pair]bool{}
 	for i := range n {
 		idx := i * (len(pairs) - 1) / (n - 1)
-		if n == 1 {
-			idx = 0
-		}
 		if !seen[pairs[idx]] {
 			seen[pairs[idx]] = true
 			out = append(out, pairs[idx])
