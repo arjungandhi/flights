@@ -4,7 +4,9 @@
 {{if not .Data}}<p class="muted">No explore trips. Add one from the <a href="/">trips</a> page (explore tab).</p>{{end}}
 {{range .Data}}
 <div class="rule"><a href="/trips/{{.ID}}">{{.ID}}</a> · {{.Where}} · {{.When}} · scanned <span class="hand">{{ago .LastScan.StartedAt}}</span></div>
-{{if not .Dests}}<p class="muted">Nothing priced yet.</p>{{end}}
+{{if not .Regions}}<p class="muted">Nothing priced yet.</p>{{else}}<p class="label">{{.Total}} destinations priced · cheapest first within each region · <a href="/explore?all=1">show all</a></p>{{end}}
+{{range .Regions}}
+<h2>{{.Name}}{{if .Hidden}} <span class="label">+{{.Hidden}} more</span>{{end}}</h2>
 <div class="cards">
 {{range .Dests}}
   {{$best := index .Cands 0}}
@@ -23,6 +25,7 @@
   </div>
 {{end}}
 </div>
+{{end}}
 {{end}}
 </section>
 {{end}}

@@ -88,6 +88,15 @@ func Destinations(region string, exclude []string) []Destination {
 	return out
 }
 
+func Region(code string) string {
+	for _, d := range all {
+		if d.Code == code {
+			return d.Region
+		}
+	}
+	return ""
+}
+
 func City(code string) string {
 	for _, d := range all {
 		if d.Code == code {

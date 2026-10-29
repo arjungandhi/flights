@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/arjungandhi/flights/pkg/db"
+	"github.com/arjungandhi/flights/pkg/geo"
 	"github.com/arjungandhi/flights/pkg/model"
 	"github.com/arjungandhi/flights/pkg/pricing"
 )
@@ -307,13 +308,23 @@ type exploreDest struct {
 	Cands []pricing.Candidate
 }
 
+type exploreRegion struct {
+	Name   string
+	Dests  []exploreDest
+	Hidden int // destinations cut by the per-region limit
+}
+
 type exploreTrip struct {
 	model.Trip
-	Dests    []exploreDest
+	Regions  []exploreRegion
+	Total    int
 	LastScan model.Scan
 }
 
+const explorePerRegion = 6
+
 func (s *Server) explore(w http.ResponseWriter, r *http.Request) {
+	showAll := r.URL.Query().Get("all") == "1"
 	trips, err := s.DB.Trips()
 	if err != nil {
 		s.fail(w, err)
@@ -346,17 +357,36 @@ func (s *Server) explore(w http.ResponseWriter, r *http.Request) {
 			if d == nil {
 				d = &exploreDest{Dest: c.Dest}
 				byDest[c.Dest] = d
-				et.Dests = append(et.Dests, exploreDest{})
 			}
 			if len(d.Cands) < 3 {
 				d.Cands = append(d.Cands, c)
 			}
 		}
-		et.Dests = et.Dests[:0]
+		dests := make([]exploreDest, 0, len(byDest))
 		for _, d := range byDest {
-			et.Dests = append(et.Dests, *d)
+			dests = append(dests, *d)
 		}
-		sort.Slice(et.Dests, func(i, j int) bool { return et.Dests[i].Cands[0].Total < et.Dests[j].Cands[0].Total })
+		sort.Slice(dests, func(i, j int) bool { return dests[i].Cands[0].Total < dests[j].Cands[0].Total })
+		et.Total = len(dests)
+		// Group by region, keep each region's order (cheapest first) and cut unless ?all=1.
+		idx := map[string]int{}
+		for _, d := range dests {
+			name := geo.Region(d.Dest)
+			if name == "" {
+				name = "other"
+			}
+			i, ok := idx[name]
+			if !ok {
+				i = len(et.Regions)
+				idx[name] = i
+				et.Regions = append(et.Regions, exploreRegion{Name: name})
+			}
+			if len(et.Regions[i].Dests) < explorePerRegion || showAll {
+				et.Regions[i].Dests = append(et.Regions[i].Dests, d)
+			} else {
+				et.Regions[i].Hidden++
+			}
+		}
 		out = append(out, et)
 	}
 	s.render(w, "explore", page{Title: "Explore", Data: out})
