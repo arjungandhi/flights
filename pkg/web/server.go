@@ -207,7 +207,7 @@ func sparkline(pts []model.PricePoint) template.HTML {
 	if len(pts) < 2 {
 		return ""
 	}
-	const w, h = 160.0, 36.0
+	const w, h = 160.0, 28.0
 	lo, hi := math.Inf(1), math.Inf(-1)
 	for _, p := range pts {
 		lo, hi = math.Min(lo, p.LowestUSD), math.Max(hi, p.LowestUSD)

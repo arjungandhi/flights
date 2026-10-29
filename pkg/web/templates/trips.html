@@ -93,9 +93,9 @@
 {{define "common"}}
 {{$f := .Form}}
 <div class="grid">
-  <fieldset><legend>travelers</legend>
+  <div><span class="group">travelers</span>
     {{range .Travelers}}<label class="check"><input type="checkbox" name="travelers" value="{{.ID}}" checked> {{.Name}} <span class="subtle">{{.HomesString}}</span></label>{{end}}
-  </fieldset>
+  </div>
   <label>cabin <select name="cabin">{{range .Cabins}}<option value="{{.}}" {{if eq (print .) $f.cabin}}selected{{end}}>{{.}}</option>{{end}}</select></label>
   <label>target $ / person <input type="number" name="target_usd" min="0" step="1" placeholder="600" value="{{$f.target_usd}}"></label>
   <label>max stops <select name="max_stops"><option value="any">any</option><option value="0" {{if eq $f.max_stops "0"}}selected{{end}}>nonstop</option><option value="1" {{if eq $f.max_stops "1"}}selected{{end}}>1</option></select></label>
